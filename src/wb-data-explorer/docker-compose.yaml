@@ -5,9 +5,7 @@ services:
     build:
       context: .
     restart: always
-    volumes:
-      - .:/workspace:cached
-    # Gradio app port — must match EXPOSE in Dockerfile and start.sh
+    # Gradio app port
     ports:
       - "8080:8080"
     environment:
@@ -17,9 +15,11 @@ services:
       - DATA_PROJECT_IDS=${DATA_PROJECT_IDS:-wb-beamish-acorn-6393 wb-glittery-carrot-8816}
       # LLM model (Vertex AI)
       - LLM_MODEL=${LLM_MODEL:-gemini-2.5-pro}
+      # Google ADC is automatically available in Workbench
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
     networks:
       - app-network
-    # SYS_ADMIN and fuse are required to mount workspace resources
+    # Required by Workbench for resource mounting
     cap_add:
       - SYS_ADMIN
     devices:
@@ -28,8 +28,6 @@ services:
       - apparmor:unconfined
 
 networks:
-  # The Docker network must be named "app-network". This is an external network
-  # that is created outside of this docker-compose file.
+  # The Docker network must be named "app-network"
   app-network:
     external: true
-
