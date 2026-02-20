@@ -1,0 +1,22 @@
+{
+  "id": "wb-data-explorer",
+  "version": "1.0.0",
+  "name": "WB Data Explorer",
+  "description": "Natural language query app for cross-study cohort building using FHIR metadata and BigQuery. Built with Gradio + LangGraph + Gemini.",
+  "options": {
+    "cloud": {
+      "type": "string",
+      "enum": ["gcp", "aws"],
+      "default": "gcp",
+      "description": "Cloud provider (gcp or aws)"
+    },
+    "login": {
+      "type": "string",
+      "description": "Whether to log in to workbench CLI",
+      "proposals": ["true", "false"],
+      "default": "false"
+    }
+  },
+  "platforms": ["Any"]
+}
+

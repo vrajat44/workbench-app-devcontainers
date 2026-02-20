@@ -1,0 +1,18 @@
+# WB Data Explorer — Dependencies
+# Step 1: Metadata loader (no external deps — stdlib only)
+# Step 2: Prompt engine + LLM
+google-cloud-aiplatform>=1.60.0
+google-genai>=1.0.0
+# Step 3: BigQuery executor + GCS metadata loading
+google-cloud-bigquery>=3.25.0
+google-cloud-storage>=2.14.0
+pandas>=2.0.0
+db-dtypes>=1.2.0
+# Step 4: Gradio UI
+gradio>=5.0.0
+# Step 5: LangGraph agent
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-google-genai>=2.0.0
+langchain-google-vertexai>=3.0.0
+

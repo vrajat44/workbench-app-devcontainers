@@ -1,0 +1,35 @@
+services:
+  app:
+    # The container name must be "application-server"
+    container_name: "application-server"
+    build:
+      context: .
+    restart: always
+    volumes:
+      - .:/workspace:cached
+    # Gradio app port — must match EXPOSE in Dockerfile and start.sh
+    ports:
+      - "8080:8080"
+    environment:
+      # Metadata loaded from GCS at runtime (no files bundled in image)
+      - METADATA_SOURCE=${METADATA_SOURCE:-gs://metadata-json-wb-shrewd-papaya-8403}
+      # Data project IDs where BigQuery tables live (space-separated)
+      - DATA_PROJECT_IDS=${DATA_PROJECT_IDS:-wb-beamish-acorn-6393 wb-glittery-carrot-8816}
+      # LLM model (Vertex AI)
+      - LLM_MODEL=${LLM_MODEL:-gemini-2.5-pro}
+    networks:
+      - app-network
+    # SYS_ADMIN and fuse are required to mount workspace resources
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+
+networks:
+  # The Docker network must be named "app-network". This is an external network
+  # that is created outside of this docker-compose file.
+  app-network:
+    external: true
+
