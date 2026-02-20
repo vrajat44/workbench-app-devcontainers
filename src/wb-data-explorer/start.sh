@@ -19,18 +19,16 @@ if [ -z "$GCP_PROJECT_ID" ]; then
     echo "⚠ WARNING: No GCP_PROJECT_ID detected. LLM and BQ features may not work."
 fi
 
-# Build the command
-CMD="python app.py --port=8080 --server-name=0.0.0.0 --json-dir=${METADATA_SOURCE}"
+# Build the command — NOTE: no --server-name flag (hardcoded in app.py to 0.0.0.0)
+CMD="python app.py --port=8080 --json-dir=${METADATA_SOURCE}"
 
 if [ -n "$GCP_PROJECT_ID" ]; then
     CMD="${CMD} --project=${GCP_PROJECT_ID}"
 fi
 
-# Data projects (space-separated list in env var)
+# Data projects (space-separated list in env var) — pass as single --data-project with multiple values
 if [ -n "$DATA_PROJECT_IDS" ]; then
-    for proj in $DATA_PROJECT_IDS; do
-        CMD="${CMD} --data-project ${proj}"
-    done
+    CMD="${CMD} --data-project ${DATA_PROJECT_IDS}"
 fi
 
 # LLM model override
