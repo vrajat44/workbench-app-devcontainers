@@ -1,0 +1,2430 @@
+{
+  "benchmark_run": {
+    "timestamp": "2026-02-23T13:46:05.767332",
+    "total_questions": 1,
+    "total_elapsed_seconds": 12.0,
+    "system_prompt_length": 83413
+  },
+  "metadata_catalog": {
+    "wb-beamish-acorn-6393.admin.COEVAL": {
+      "title": "BHS Admin \u2014 COEVAL (Cohort Eligibility)",
+      "description": "Cohort eligibility assessment for BHS participants \u2014 captures protocol assignment and putative risk cohort classification. Each row represents one participant's eligibility status and risk cohort assignment at enrollment.",
+      "primary_key": "USUBJID",
+      "column_count": 6,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "cohort_eligibility",
+          "type": "STRING",
+          "description": "Eligibility status",
+          "sensitivity": null
+        },
+        {
+          "name": "putative_cohort",
+          "type": "STRING",
+          "description": "Putative risk cohort",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.analysis.ASCVD",
+        "wb-beamish-acorn-6393.analysis.ASSAYS",
+        "wb-beamish-acorn-6393.analysis.AUDITC_SCORES",
+        "http://fhir.verily.com/StructureDefinition/bhs-admin-sitehist"
+      ]
+    },
+    "wb-beamish-acorn-6393.analysis.ASCVD": {
+      "title": "BHS Analysis \u2014 ASCVD Risk Scores",
+      "description": "ASCVD (Atherosclerotic Cardiovascular Disease) 10-year risk scores computed per participant per visit in BHS. Includes the calculated risk score, imputation flag, and history of heart attack or stroke. Used as a longitudinal measure of cardiovascular health status.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 10,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study visit label",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Numeric visit number",
+          "sensitivity": null
+        },
+        {
+          "name": "study_day",
+          "type": "FLOAT",
+          "description": "Days from enrollment",
+          "sensitivity": null
+        },
+        {
+          "name": "score",
+          "type": "FLOAT",
+          "description": "ASCVD 10-year risk score",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "score_flag",
+          "type": "FLOAT",
+          "description": "Imputation flag for ASCVD score",
+          "sensitivity": null
+        },
+        {
+          "name": "heart_attack_or_stroke",
+          "type": "STRING",
+          "description": "History of heart attack or stroke",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.analysis.ASSAYS",
+        "wb-beamish-acorn-6393.analysis.AUDITC_SCORES",
+        "wb-beamish-acorn-6393.admin.COEVAL"
+      ]
+    },
+    "wb-beamish-acorn-6393.analysis.ASSAYS": {
+      "title": "BHS Analysis \u2014 Assay Availability Matrix",
+      "description": "Assay availability matrix for BHS participants \u2014 indicates which molecular/omic assays are available per participant per visit. Each binary column (0/1) represents whether a specific assay type (Flow Cytometry, Mass Cytometry, Microbiome, DNA Methylation, Proteomics, RNA Sequencing, DNA Sequencing) was completed for that participant-visit combination.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 14,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study visit label",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Numeric visit number",
+          "sensitivity": null
+        },
+        {
+          "name": "Flow_Cytometry",
+          "type": "INTEGER",
+          "description": "Flow cytometry availability",
+          "sensitivity": null
+        },
+        {
+          "name": "Mass_Cytometry",
+          "type": "INTEGER",
+          "description": "Mass cytometry (CyTOF) availability",
+          "sensitivity": null
+        },
+        {
+          "name": "Microbiome_Stool",
+          "type": "INTEGER",
+          "description": "Stool microbiome availability",
+          "sensitivity": null
+        },
+        {
+          "name": "Microbiome_Swabs",
+          "type": "INTEGER",
+          "description": "Swab microbiome availability",
+          "sensitivity": null
+        },
+        {
+          "name": "DNA_Methylation",
+          "type": "INTEGER",
+          "description": "DNA methylation availability",
+          "sensitivity": null
+        },
+        {
+          "name": "Proteomics",
+          "type": "INTEGER",
+          "description": "Proteomics availability",
+          "sensitivity": null
+        },
+        {
+          "name": "RNA_Sequencing",
+          "type": "INTEGER",
+          "description": "RNA sequencing availability",
+          "sensitivity": null
+        },
+        {
+          "name": "DNA_Sequencing",
+          "type": "INTEGER",
+          "description": "DNA sequencing availability",
+          "sensitivity": null
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.analysis.ASCVD",
+        "wb-beamish-acorn-6393.analysis.AUDITC_SCORES",
+        "wb-beamish-acorn-6393.admin.COEVAL"
+      ]
+    },
+    "wb-beamish-acorn-6393.analysis.AUDITC_SCORES": {
+      "title": "BHS Analysis \u2014 AUDIT-C Scores",
+      "description": "AUDIT-C (Alcohol Use Disorders Identification Test \u2014 Consumption) scores for BHS participants. A validated 3-question screening instrument for alcohol use, administered longitudinally at each study visit including quarterly follow-ups. The sum score ranges from 0 to 12; scores \u2265 3 (women) or \u2265 4 (men) suggest hazardous drinking.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 9,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study visit label",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Numeric visit number",
+          "sensitivity": null
+        },
+        {
+          "name": "questionnaire_version",
+          "type": "STRING",
+          "description": "Questionnaire version",
+          "sensitivity": null
+        },
+        {
+          "name": "study_day",
+          "type": "FLOAT",
+          "description": "Days from enrollment",
+          "sensitivity": null
+        },
+        {
+          "name": "AUDITC_SUM_SCORE",
+          "type": "INTEGER",
+          "description": "AUDIT-C sum score",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.analysis.ASCVD",
+        "wb-beamish-acorn-6393.analysis.ASSAYS",
+        "wb-beamish-acorn-6393.admin.COEVAL"
+      ]
+    },
+    "wb-beamish-acorn-6393.analysis.DIAGNOSES": {
+      "title": "BHS Analysis \u2014 Diagnoses",
+      "description": "Comprehensive clinical diagnoses, medical history, current medications, surgical events, vital signs, laboratory results, and core lab imaging reads for BHS participants. Contains 130 variables covering demographics, derived condition flags, self-reported medical history, medication use, surgical procedures, anthropometrics, CLIA lab results, and ECG/ECHO/CCS core lab interpretations. This is the richest clinical table in the BHS analysis dataset.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 130,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study visit label",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Numeric visit number",
+          "sensitivity": null
+        },
+        {
+          "name": "sex",
+          "type": "STRING",
+          "description": "Sex at birth",
+          "sensitivity": "P_BIRTHSEX"
+        },
+        {
+          "name": "smoking_status",
+          "type": "STRING",
+          "description": "Smoking status",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "pack_years_smoked",
+          "type": "FLOAT",
+          "description": "Pack years smoked",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_cvd",
+          "type": "INTEGER",
+          "description": "Any history of cardiovascular disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_afib",
+          "type": "INTEGER",
+          "description": "Any history of atrial fibrillation",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_arrythmia",
+          "type": "INTEGER",
+          "description": "Any history of cardiac arrhythmia",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_ascvd",
+          "type": "INTEGER",
+          "description": "Any history of ASCVD",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_cad",
+          "type": "INTEGER",
+          "description": "Any history of coronary artery disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_cerebrovasc",
+          "type": "INTEGER",
+          "description": "Any history of cerebrovascular event",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_chf",
+          "type": "INTEGER",
+          "description": "Any history of congestive heart failure",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_pad",
+          "type": "INTEGER",
+          "description": "Any history of peripheral artery disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_vhd",
+          "type": "INTEGER",
+          "description": "Any history of valvular heart disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_htn",
+          "type": "INTEGER",
+          "description": "Any history of hypertension",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_diab",
+          "type": "INTEGER",
+          "description": "Any history of diabetes",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_dyslipidemia",
+          "type": "INTEGER",
+          "description": "Any history of dyslipidemia",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_hx_ckd",
+          "type": "INTEGER",
+          "description": "Any history of chronic kidney disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_af_htn",
+          "type": "INTEGER",
+          "description": "Any history of hypertension, age-flexible definition",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "der_af_dyslipidemia",
+          "type": "INTEGER",
+          "description": "Any history of dyslipidemia, age-flexible definition",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_cvd",
+          "type": "INTEGER",
+          "description": "Medical history: any cardiovascular disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_afib",
+          "type": "INTEGER",
+          "description": "Medical history: atrial fibrillation",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_cad",
+          "type": "INTEGER",
+          "description": "Medical history: coronary artery disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_chf",
+          "type": "INTEGER",
+          "description": "Medical history: congestive heart failure",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_cmp",
+          "type": "INTEGER",
+          "description": "Medical history: cardiomyopathy",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_cv_congenital",
+          "type": "INTEGER",
+          "description": "Medical history: congenital CVD",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_cva",
+          "type": "INTEGER",
+          "description": "Medical history: cerebrovascular accident",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_hrisk_arr",
+          "type": "INTEGER",
+          "description": "Medical history: high-risk arrhythmia",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_lvh",
+          "type": "INTEGER",
+          "description": "Medical history: left ventricular hypertrophy",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_mi",
+          "type": "INTEGER",
+          "description": "Medical history: myocardial infarction",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_pericard",
+          "type": "INTEGER",
+          "description": "Medical history: pericardial disorder",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_pulm_vasc",
+          "type": "INTEGER",
+          "description": "Medical history: pulmonary vascular disorder",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_pad",
+          "type": "INTEGER",
+          "description": "Medical history: peripheral artery disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_thromb",
+          "type": "INTEGER",
+          "description": "Medical history: thrombotic and embolic disorders",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_tia",
+          "type": "INTEGER",
+          "description": "Medical history: transient ischemic attack",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_vhd",
+          "type": "INTEGER",
+          "description": "Medical history: valvular heart disorders",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_ai",
+          "type": "INTEGER",
+          "description": "Medical history: any autoimmune disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_ai_hep",
+          "type": "INTEGER",
+          "description": "Medical history: autoimmune hepatitis",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_hiv",
+          "type": "INTEGER",
+          "description": "Medical history: HIV",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_gi",
+          "type": "INTEGER",
+          "description": "Medical history: gastrointestinal inflammatory conditions",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_psoriasis",
+          "type": "INTEGER",
+          "description": "Medical history: psoriasis",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_psoriatic_arth",
+          "type": "INTEGER",
+          "description": "Medical history: psoriatic arthritis",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_ra",
+          "type": "INTEGER",
+          "description": "Medical history: rheumatoid arthritis",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_sle",
+          "type": "INTEGER",
+          "description": "Medical history: systemic lupus erythematosus",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_estd",
+          "type": "INTEGER",
+          "description": "Medical history: other established disease equivalent",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_ckd",
+          "type": "INTEGER",
+          "description": "Medical history: chronic kidney disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_copd",
+          "type": "INTEGER",
+          "description": "Medical history: COPD",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_nafld",
+          "type": "INTEGER",
+          "description": "Medical history: nonalcoholic fatty liver disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_alc_abuse",
+          "type": "INTEGER",
+          "description": "Medical history: alcohol abuse",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_drug_abuse",
+          "type": "INTEGER",
+          "description": "Medical history: drug abuse",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_major_depression",
+          "type": "INTEGER",
+          "description": "Medical history: major depression",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_bipolar",
+          "type": "INTEGER",
+          "description": "Medical history: bipolar disorder",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_psychoaffective",
+          "type": "INTEGER",
+          "description": "Medical history: schizoaffective disorder",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_dementia",
+          "type": "INTEGER",
+          "description": "Medical history: dementia",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_sleepapnea",
+          "type": "INTEGER",
+          "description": "Medical history: sleep apnea",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_diab1",
+          "type": "INTEGER",
+          "description": "Medical history: type I diabetes",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_diab2",
+          "type": "INTEGER",
+          "description": "Medical history: type II diabetes",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_diabetes",
+          "type": "INTEGER",
+          "description": "Medical history: any diabetes",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "mh_htn",
+          "type": "INTEGER",
+          "description": "Medical history: hypertension",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_onc_immune",
+          "type": "INTEGER",
+          "description": "Current medications: oncology/immunotherapy",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_cardiotoxic",
+          "type": "INTEGER",
+          "description": "Current medications: cardiotoxic medications",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_diabetes",
+          "type": "INTEGER",
+          "description": "Current medications: antidiabetic medications",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_bb",
+          "type": "INTEGER",
+          "description": "Current medications: beta blockers",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_diuretics",
+          "type": "INTEGER",
+          "description": "Current medications: diuretics",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_ccb",
+          "type": "INTEGER",
+          "description": "Current medications: calcium channel blockers",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_acei",
+          "type": "INTEGER",
+          "description": "Current medications: ACE-inhibitors",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_arb",
+          "type": "INTEGER",
+          "description": "Current medications: ARBs",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_aa",
+          "type": "INTEGER",
+          "description": "Current medications: AAs",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_htn_other",
+          "type": "INTEGER",
+          "description": "Current medications: other hypertension medications",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_htn",
+          "type": "INTEGER",
+          "description": "Current medications: any antihypertensives",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_n_htn",
+          "type": "FLOAT",
+          "description": "Current medications: number of anti-hypertensive medications",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_lipiddrugs",
+          "type": "INTEGER",
+          "description": "Current medications: lipid lowering medications",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_n_lipiddrugs",
+          "type": "FLOAT",
+          "description": "Current medications: number of lipid lowering medications",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_statin",
+          "type": "INTEGER",
+          "description": "Current medications: statins",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "cm_pcsk9",
+          "type": "INTEGER",
+          "description": "Current medications: PCSK9 inhibitors",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_afib",
+          "type": "INTEGER",
+          "description": "Surgical events: atrial fibrillation",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_arrythmia",
+          "type": "INTEGER",
+          "description": "Surgical events: cardiac arrhythmia",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_cad",
+          "type": "INTEGER",
+          "description": "Surgical events: coronary artery disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_cardiac_tumor",
+          "type": "INTEGER",
+          "description": "Surgical events: cardiac tumor",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_chd",
+          "type": "INTEGER",
+          "description": "Surgical events: congenital heart disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_ckd",
+          "type": "INTEGER",
+          "description": "Surgical events: chronic kidney disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_closure",
+          "type": "INTEGER",
+          "description": "Surgical events: atrial septal defect closure",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_electrophysiology",
+          "type": "INTEGER",
+          "description": "Surgical events: cardiac electrophysiology",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_hf",
+          "type": "INTEGER",
+          "description": "Surgical events: heart failure",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_pad",
+          "type": "INTEGER",
+          "description": "Surgical events: peripheral artery disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_thromb",
+          "type": "INTEGER",
+          "description": "Surgical events: thrombosis",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_venous_insuff",
+          "type": "INTEGER",
+          "description": "Surgical events: venous insufficiency",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "surg_vhd",
+          "type": "INTEGER",
+          "description": "Surgical events: valvular heart disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_vs_height_m",
+          "type": "FLOAT",
+          "description": "Vital signs: height",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_vs_weight_kg",
+          "type": "FLOAT",
+          "description": "Vital signs: weight",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_vs_bsa",
+          "type": "FLOAT",
+          "description": "Vital signs: body surface area",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_vs_bmi_class",
+          "type": "STRING",
+          "description": "Vital signs: weight classification",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_vs_wc_class",
+          "type": "INTEGER",
+          "description": "Vital signs: increased waist circumference",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_vs_htn_class_aha",
+          "type": "STRING",
+          "description": "Vital signs: hypertension classification",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_vs_htn_class_esh",
+          "type": "STRING",
+          "description": "Vital signs: hypertension classification",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_ckd_mdrd",
+          "type": "INTEGER",
+          "description": "CLIA Labs: chronic kidney disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_prediab",
+          "type": "INTEGER",
+          "description": "CLIA Labs: prediabetes",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_diab2",
+          "type": "INTEGER",
+          "description": "CLIA Labs: type II diabetes",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_dyslipidemia_major",
+          "type": "INTEGER",
+          "description": "CLIA Labs: dyslipidemia",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "labs_dyslipidemia_metab",
+          "type": "INTEGER",
+          "description": "CLIA Labs: dyslipidemia",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_ecg_afib",
+          "type": "INTEGER",
+          "description": "Core Lab reads: atrial fibrillation",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_vhd",
+          "type": "INTEGER",
+          "description": "Core Lab reads: valvular heart disease",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_vhd_ao_mitr",
+          "type": "INTEGER",
+          "description": "Core Lab reads: disease of the aortic or mitral valves",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_vhd_tv_pv",
+          "type": "INTEGER",
+          "description": "Core Lab reads: disease of the tricuspid or pulmonary valves",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_lvmass_ht2p7",
+          "type": "FLOAT",
+          "description": "Core Lab reads: height-adjusted",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_lvmass_ht1p7",
+          "type": "FLOAT",
+          "description": "Core Lab reads: height-adjusted",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_lvmass_bsa",
+          "type": "FLOAT",
+          "description": "Core Lab reads: BSA-adjusted left ventricular mass",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_lvedv_bsa",
+          "type": "FLOAT",
+          "description": "Core Lab reads: BSA-adjusted left ventricular end-diastolic volume",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_lav_bsa",
+          "type": "FLOAT",
+          "description": "Core Lab reads: BSA-adjusted left atrial volume",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_rvarea_bsa",
+          "type": "FLOAT",
+          "description": "Core Lab reads: right ventricular diastolic area/BSA",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_raarea_bsa",
+          "type": "FLOAT",
+          "description": "Core Lab reads: right atrial area/BSA",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_lv_hyp",
+          "type": "INTEGER",
+          "description": "Core Lab reads: left ventricular hypertrophy",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_lv_enl",
+          "type": "INTEGER",
+          "description": "Core Lab reads: left ventricular enlargement",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_la_enl",
+          "type": "INTEGER",
+          "description": "Core Lab reads: left atrial enlargement",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_rv_enl",
+          "type": "INTEGER",
+          "description": "Core Lab reads: right ventricular enlargement",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_ra_enl",
+          "type": "INTEGER",
+          "description": "Core Lab reads: right atrial enlargement",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_wmrest_abn",
+          "type": "INTEGER",
+          "description": "Core Lab reads: wall motion resting score abnormality",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_ef",
+          "type": "FLOAT",
+          "description": "Core Lab reads: ejection fraction %",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_ef_lt50",
+          "type": "INTEGER",
+          "description": "Core Lab reads: reduced ejection fraction <50%",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_red_rvfac",
+          "type": "INTEGER",
+          "description": "Core Lab reads: reduced RV fractional area change",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_red_rvtapse",
+          "type": "INTEGER",
+          "description": "Core Lab reads: reduced tricuspid annular plane systolic excursion",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_red_rv_func",
+          "type": "INTEGER",
+          "description": "Core Lab reads: reduced RV function",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_rv_axis_abn",
+          "type": "INTEGER",
+          "description": "Core Lab reads: abnormal RV axis",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_echo_lv_axis_abn",
+          "type": "INTEGER",
+          "description": "Core Lab reads: abnormal LV axis",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_ccs_cac",
+          "type": "FLOAT",
+          "description": "Core Lab reads: coronary artery calcium score",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "corelab_ccs_cac_cat",
+          "type": "STRING",
+          "description": "Core Lab reads: coronary artery calcium score classification",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.analysis.ASCVD",
+        "wb-beamish-acorn-6393.analysis.ASSAYS",
+        "wb-beamish-acorn-6393.analysis.AUDITC_SCORES",
+        "wb-beamish-acorn-6393.admin.COEVAL",
+        "http://fhir.verily.com/StructureDefinition/bhs-admin-sitehist"
+      ]
+    },
+    "wb-beamish-acorn-6393.analysis.WHODAS_SCORES": {
+      "title": "BHS Analysis \u2014 WHODAS 2.0 Scores",
+      "description": "Calculated summary scores from the WHO Disability Assessment Schedule 2.0 (WHODAS 2.0) 12-item short form \u2014 one row per participant per visit. Contains the simple sum score (whodas_s_sum) derived from items Q1-Q12, plus three self-reported overall health-impact items: number of days difficulties were present (whodas_h1), number of days totally unable to function (whodas_h2), and number of days with reduced activity due to health conditions (whodas_h3). The summary score ranges from 0 (no disability) to 48 (maximum disability). This table aggregates data from both CRF and App survey administrations (indicated by survey_format). For item-level raw responses, see bhs.crf.WHODAS or bhs.appsurveys.WHODASA. Cross-study note: WHODAS is a WHO-standardized instrument \u2014 scores are directly comparable across studies using the same short form. BHS uses USUBJID while PRESCO uses participant_id.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 13,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study Visit",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Visit Number",
+          "sensitivity": null
+        },
+        {
+          "name": "questionnaire_version",
+          "type": "STRING",
+          "description": "Questionnaire version",
+          "sensitivity": null
+        },
+        {
+          "name": "study_day",
+          "type": "FLOAT",
+          "description": "Study day",
+          "sensitivity": null
+        },
+        {
+          "name": "whodas_s_sum",
+          "type": "FLOAT",
+          "description": "WHODAS 2.0 summary score",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_h1",
+          "type": "FLOAT",
+          "description": "Difficult days",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_h2",
+          "type": "FLOAT",
+          "description": "Unable days",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_h3",
+          "type": "FLOAT",
+          "description": "Health condition days",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "survey_format",
+          "type": "STRING",
+          "description": "Survey format",
+          "sensitivity": null
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.admin.COEVAL",
+        "wb-beamish-acorn-6393.screener.DM",
+        "wb-beamish-acorn-6393.crf.WHODAS",
+        "wb-beamish-acorn-6393.crf.PHQ9",
+        "wb-beamish-acorn-6393.crf.GAD7",
+        "wb-beamish-acorn-6393.crf.EQ5D"
+      ]
+    },
+    "wb-beamish-acorn-6393.crf.EQ5D": {
+      "title": "BHS CRF \u2014 EQ-5D-5L (Quality of Life)",
+      "description": "EuroQol 5-Dimension 5-Level (EQ-5D-5L) \u2014 a standardized measure of health-related quality of life. Captures five dimensions: mobility, self-care, usual activities, pain/discomfort, and anxiety/depression, each scored on a 1\u20135 severity scale (1 = no problems, 5 = extreme problems/unable). Includes a Visual Analogue Scale (VAS) for overall health today rated 0\u2013100. The anxiety/depression dimension is critical for cross-study analysis with PHQ-9 and GAD-7 for comprehensive mental health profiling. The EQ-5D can also be used alongside WHODAS to provide complementary functional status and quality-of-life assessments. Cross-study note: EQ-5D functional dimensions can be compared conceptually with PRESCO participant functional outcomes for evaluating post-COVID quality of life.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 20,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "questionnaire_version",
+          "type": "STRING",
+          "description": "Questionnaire version",
+          "sensitivity": null
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study Visit",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Visit Number",
+          "sensitivity": null
+        },
+        {
+          "name": "study_day",
+          "type": "FLOAT",
+          "description": "Days from enrollment",
+          "sensitivity": null
+        },
+        {
+          "name": "eq5d_lang",
+          "type": "STRING",
+          "description": "Language",
+          "sensitivity": null
+        },
+        {
+          "name": "eq5d_mobi",
+          "type": "STRING",
+          "description": "Mobility",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_mobi_CODE",
+          "type": "FLOAT",
+          "description": "Mobility (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_selfcare",
+          "type": "STRING",
+          "description": "Self-care",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_selfcare_CODE",
+          "type": "FLOAT",
+          "description": "Self-care (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_usual",
+          "type": "STRING",
+          "description": "Usual Activities",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_usual_CODE",
+          "type": "FLOAT",
+          "description": "Usual Activities (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_paindis",
+          "type": "STRING",
+          "description": "Pain/Discomfort",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_paindis_CODE",
+          "type": "FLOAT",
+          "description": "Pain/Discomfort (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_anxiety",
+          "type": "STRING",
+          "description": "Anxiety/Depression",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_anxiety_CODE",
+          "type": "FLOAT",
+          "description": "Anxiety/Depression (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "eq5d_health",
+          "type": "STRING",
+          "description": "Health today (VAS 0\u2013100)",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.admin.COEVAL",
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.crf.PHQ9",
+        "wb-beamish-acorn-6393.crf.GAD7",
+        "wb-beamish-acorn-6393.crf.WHODAS",
+        "wb-beamish-acorn-6393.screener.DM"
+      ]
+    },
+    "wb-beamish-acorn-6393.crf.GAD7": {
+      "title": "BHS CRF \u2014 GAD-7 (Anxiety Screening)",
+      "description": "Generalized Anxiety Disorder 7-item scale (GAD-7) \u2014 a validated, 7-item self-report anxiety screener administered at BHS clinical visits. Each item assesses the frequency of a specific anxiety symptom over the past 2 weeks on a 0\u20133 Likert scale (0 = Not at all, 1 = Several days, 2 = More than half the days, 3 = Nearly every day). Total score ranges from 0 to 21 with clinical severity cutoffs: 5 = mild, 10 = moderate, 15 = severe anxiety. The GAD-7 is a primary mental health outcome measure in BHS and is typically analyzed alongside PHQ-9 (depression) for comprehensive behavioral health profiling. The EQ-5D anxiety/depression dimension provides complementary quality-of-life context. Cross-study note: while PRESCO does not include GAD-7 directly, anxiety phenotyping from BHS can inform post-COVID outcome analyses.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 23,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "questionnaire_version",
+          "type": "STRING",
+          "description": "Questionnaire version",
+          "sensitivity": null
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study Visit",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Visit Number",
+          "sensitivity": null
+        },
+        {
+          "name": "study_day",
+          "type": "FLOAT",
+          "description": "Days from enrollment",
+          "sensitivity": null
+        },
+        {
+          "name": "gad7_lang",
+          "type": "STRING",
+          "description": "Language of administration",
+          "sensitivity": null
+        },
+        {
+          "name": "gad7_1",
+          "type": "STRING",
+          "description": "Feeling nervous, anxious",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_1_CODE",
+          "type": "FLOAT",
+          "description": "Feeling nervous (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_2",
+          "type": "STRING",
+          "description": "Not being able to stop worrying",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_2_CODE",
+          "type": "FLOAT",
+          "description": "Worrying (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_3",
+          "type": "STRING",
+          "description": "Worrying about different things",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_3_CODE",
+          "type": "FLOAT",
+          "description": "Different things (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_4",
+          "type": "STRING",
+          "description": "Trouble relaxing",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_4_CODE",
+          "type": "FLOAT",
+          "description": "Trouble relaxing (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_5",
+          "type": "STRING",
+          "description": "Being so restless",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_5_CODE",
+          "type": "FLOAT",
+          "description": "Restless (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_6",
+          "type": "STRING",
+          "description": "Becoming easily annoyed",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_6_CODE",
+          "type": "FLOAT",
+          "description": "Annoyed (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_7",
+          "type": "STRING",
+          "description": "Feeling afraid",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "gad7_7_CODE",
+          "type": "FLOAT",
+          "description": "Feeling afraid (code)",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.admin.COEVAL",
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.crf.PHQ9",
+        "wb-beamish-acorn-6393.crf.EQ5D",
+        "wb-beamish-acorn-6393.screener.DM"
+      ]
+    },
+    "wb-beamish-acorn-6393.crf.PFT": {
+      "title": "BHS CRF \u2014 PFT (Pulmonary Function Tests / Spirometry)",
+      "description": "Pulmonary Function Tests (PFT / Spirometry) \u2014 device-measured lung function assessments performed at BHS clinical visits per ATS/ERS standards. Key measures include FEV1 (forced expiratory volume in 1 second), FVC (forced vital capacity), FEV1/FVC ratio, DLCO (diffusing capacity for carbon monoxide), and flow rates at various lung volumes (FEF25, FEF50, FEF75, FEF25-75). An FEV1/FVC ratio < 0.70 suggests obstructive lung disease (e.g., COPD, asthma). Percent-predicted values (fvcpre, pefpre, dlcopre) normalize for age, sex, height, and ethnicity. PFT data are critical for respiratory phenotyping in BHS and relate to PRESCO post-COVID respiratory outcomes analyses. Cross-study note: BHS PFT provides objective lung function baselines that can be compared to post-COVID respiratory sequelae characterized in PRESCO.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 23,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "questionnaire_version",
+          "type": "STRING",
+          "description": "Form version",
+          "sensitivity": null
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study Visit",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Visit Number",
+          "sensitivity": null
+        },
+        {
+          "name": "study_day",
+          "type": "FLOAT",
+          "description": "Days from enrollment",
+          "sensitivity": null
+        },
+        {
+          "name": "pft_perf",
+          "type": "STRING",
+          "description": "Assessment performed?",
+          "sensitivity": null
+        },
+        {
+          "name": "pft_perfn",
+          "type": "STRING",
+          "description": "Reason not completed",
+          "sensitivity": null
+        },
+        {
+          "name": "pft_qual",
+          "type": "STRING",
+          "description": "Overall Quality",
+          "sensitivity": null
+        },
+        {
+          "name": "ratio",
+          "type": "FLOAT",
+          "description": "FEV1/FVC Ratio",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "dlco",
+          "type": "FLOAT",
+          "description": "DLCO (mL/min/mmHg)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "fev1",
+          "type": "FLOAT",
+          "description": "FEV1",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "fvc",
+          "type": "FLOAT",
+          "description": "FVC",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "fvcpre",
+          "type": "FLOAT",
+          "description": "FVC% Predicted",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "fef25",
+          "type": "FLOAT",
+          "description": "FEF 25% (L/sec)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "fef50",
+          "type": "FLOAT",
+          "description": "FEF 50% (L/sec)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "fef75",
+          "type": "FLOAT",
+          "description": "FEF 75% (L/sec)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "fefrange",
+          "type": "FLOAT",
+          "description": "FEF 25-75% (L/min)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "pef",
+          "type": "FLOAT",
+          "description": "Peak Expiratory Flow (PEF)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "pefpre",
+          "type": "FLOAT",
+          "description": "PEF% Predicted",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "dlcopre",
+          "type": "FLOAT",
+          "description": "DLCO% Predicted",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.admin.COEVAL",
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.screener.DM"
+      ]
+    },
+    "wb-beamish-acorn-6393.crf.PHQ9": {
+      "title": "BHS CRF \u2014 PHQ-9 (Depression Screening)",
+      "description": "Patient Health Questionnaire-9 (PHQ-9) \u2014 a validated, 9-item self-report depression screener administered at BHS clinical visits. Each of the 9 items assesses the frequency of a specific depressive symptom over the past 2 weeks on a 0\u20133 Likert scale (0 = Not at all, 1 = Several days, 2 = More than half the days, 3 = Nearly every day). Total score ranges from 0 to 27 with clinical severity cutoffs: 5 = mild, 10 = moderate, 15 = moderately severe, 20 = severe depression. Item 10 captures functional impairment caused by endorsed symptoms. The PHQ-9 is one of the primary mental health outcome measures in BHS and can be analyzed alongside GAD-7 (anxiety) and EQ-5D (quality of life) for comprehensive behavioral health profiling. Cross-study note: while PRESCO does not include PHQ-9 directly, depression/anxiety phenotyping from BHS can inform post-COVID outcome analyses when cohort criteria are applied consistently.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 29,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "questionnaire_version",
+          "type": "STRING",
+          "description": "Questionnaire version",
+          "sensitivity": null
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study Visit",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Visit Number",
+          "sensitivity": null
+        },
+        {
+          "name": "study_day",
+          "type": "FLOAT",
+          "description": "Days from enrollment",
+          "sensitivity": null
+        },
+        {
+          "name": "phq9_lang",
+          "type": "STRING",
+          "description": "Language of administration",
+          "sensitivity": null
+        },
+        {
+          "name": "phq9_1",
+          "type": "STRING",
+          "description": "Little interest or pleasure",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_1_CODE",
+          "type": "FLOAT",
+          "description": "Little interest or pleasure (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_2",
+          "type": "STRING",
+          "description": "Down, depressed or hopeless",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_2_CODE",
+          "type": "FLOAT",
+          "description": "Down, depressed or hopeless (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_3",
+          "type": "STRING",
+          "description": "Sleeping problems",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_3_CODE",
+          "type": "FLOAT",
+          "description": "Sleeping problems (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_4",
+          "type": "STRING",
+          "description": "Tired, little energy",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_4_CODE",
+          "type": "FLOAT",
+          "description": "Tired, little energy (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_5",
+          "type": "STRING",
+          "description": "Appetite or overeating",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_5_CODE",
+          "type": "FLOAT",
+          "description": "Appetite or overeating (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_6",
+          "type": "STRING",
+          "description": "Feeling like a failure",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_6_CODE",
+          "type": "FLOAT",
+          "description": "Feeling like a failure (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_7",
+          "type": "STRING",
+          "description": "Concentration difficulty",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_7_CODE",
+          "type": "FLOAT",
+          "description": "Concentration difficulty (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_8",
+          "type": "STRING",
+          "description": "Psychomotor changes",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_8_CODE",
+          "type": "FLOAT",
+          "description": "Psychomotor changes (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_9",
+          "type": "STRING",
+          "description": "Thoughts of self-harm",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_9_CODE",
+          "type": "FLOAT",
+          "description": "Thoughts of self-harm (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_10",
+          "type": "STRING",
+          "description": "Functional impairment",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "phq9_10_CODE",
+          "type": "FLOAT",
+          "description": "Functional impairment (code)",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.admin.COEVAL",
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.crf.GAD7",
+        "wb-beamish-acorn-6393.crf.EQ5D",
+        "wb-beamish-acorn-6393.screener.DM"
+      ]
+    },
+    "wb-beamish-acorn-6393.crf.WHODAS": {
+      "title": "BHS CRF \u2014 WHODAS 2.0 (WHO Disability Assessment Schedule)",
+      "description": "WHO Disability Assessment Schedule 2.0, 12-item short form (WHODAS 2.0) \u2014 a self-report measure of functional disability across six domains: cognition (S3, S6), mobility (S1, S7), self-care (S8, S9), getting along (S10, S11), life activities (S2, S12), and participation (S4, S5). Each of the 12 items (S1\u2013S12) is scored on a 5-point scale: 1 = None, 2 = Mild, 3 = Moderate, 4 = Severe, 5 = Extreme/Cannot do (codes 0\u20134). Items H1\u2013H3 capture total days with difficulties, days unable to function, and days with reduced activity in the past 30 days. The WHODAS raw item responses are used to compute the summary score in bhs.analysis.WHODAS_SCORES. Longitudinal changes in WHODAS indicate functional recovery or decline. Cross-study note: BHS WHODAS functional disability maps conceptually to PRESCO progressor status for evaluating post-COVID functional outcomes.",
+      "primary_key": "USUBJID + VISIT",
+      "column_count": 36,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "questionnaire_version",
+          "type": "STRING",
+          "description": "Questionnaire version",
+          "sensitivity": null
+        },
+        {
+          "name": "VISIT",
+          "type": "STRING",
+          "description": "Study Visit",
+          "sensitivity": null
+        },
+        {
+          "name": "VISITNUM",
+          "type": "FLOAT",
+          "description": "Visit Number",
+          "sensitivity": null
+        },
+        {
+          "name": "study_day",
+          "type": "FLOAT",
+          "description": "Days from enrollment",
+          "sensitivity": null
+        },
+        {
+          "name": "whodas_lang",
+          "type": "STRING",
+          "description": "Language",
+          "sensitivity": null
+        },
+        {
+          "name": "whodas_s1",
+          "type": "STRING",
+          "description": "Standing (S1 \u2014 Mobility)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s1_CODE",
+          "type": "FLOAT",
+          "description": "Standing (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s2",
+          "type": "STRING",
+          "description": "Household responsibilities (S2 \u2014 Life Activities)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s2_CODE",
+          "type": "FLOAT",
+          "description": "Household (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s3",
+          "type": "STRING",
+          "description": "Learning new task (S3 \u2014 Cognition)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s3_CODE",
+          "type": "FLOAT",
+          "description": "Learning (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s4",
+          "type": "STRING",
+          "description": "Community activities (S4 \u2014 Participation)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s4_CODE",
+          "type": "FLOAT",
+          "description": "Community (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s5",
+          "type": "STRING",
+          "description": "Emotional affect (S5 \u2014 Participation)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s5_CODE",
+          "type": "FLOAT",
+          "description": "Emotional affect (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s6",
+          "type": "STRING",
+          "description": "Concentration (S6 \u2014 Cognition)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s6_CODE",
+          "type": "FLOAT",
+          "description": "Concentration (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s7",
+          "type": "STRING",
+          "description": "Walking long distance (S7 \u2014 Mobility)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s7_CODE",
+          "type": "FLOAT",
+          "description": "Walking (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s8",
+          "type": "STRING",
+          "description": "Washing body (S8 \u2014 Self-care)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s8_CODE",
+          "type": "FLOAT",
+          "description": "Washing (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s9",
+          "type": "STRING",
+          "description": "Getting dressed (S9 \u2014 Self-care)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s9_CODE",
+          "type": "FLOAT",
+          "description": "Dressed (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s10",
+          "type": "STRING",
+          "description": "Dealing with people (S10 \u2014 Getting Along)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s10_CODE",
+          "type": "FLOAT",
+          "description": "Dealing with people (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s11",
+          "type": "STRING",
+          "description": "Maintaining friendship (S11 \u2014 Getting Along)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s11_CODE",
+          "type": "FLOAT",
+          "description": "Friendship (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s12",
+          "type": "STRING",
+          "description": "Day to day work (S12 \u2014 Life Activities)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_s12_CODE",
+          "type": "FLOAT",
+          "description": "Day to day work (code)",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_h1",
+          "type": "FLOAT",
+          "description": "Difficult days",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_h2",
+          "type": "FLOAT",
+          "description": "Unable days",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "whodas_h3",
+          "type": "FLOAT",
+          "description": "Health condition days",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.admin.COEVAL",
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.analysis.WHODAS_SCORES",
+        "wb-beamish-acorn-6393.crf.EQ5D",
+        "wb-beamish-acorn-6393.screener.DM"
+      ]
+    },
+    "wb-beamish-acorn-6393.screener.DM": {
+      "title": "BHS Screener \u2014 Demographics (DM)",
+      "description": "Participant demographics collected during BHS screening \u2014 one row per participant. Contains age at enrollment, sex at birth, current gender identity alignment, Hispanic/Latino ethnicity, self-identified race, study recruitment source, and participation motivations. This table is essential for cohort characterization, stratification, and subgroup analyses across all BHS tables. Demographics are needed to normalize clinical measurements (e.g., PFT percent-predicted values depend on age, sex, and ethnicity). Cross-study note: BHS uses USUBJID while PRESCO uses participant_id \u2014 no direct patient overlap between studies, but demographic criteria can be applied consistently for comparable cohort definitions.",
+      "primary_key": "USUBJID",
+      "column_count": 30,
+      "columns": [
+        {
+          "name": "STUDYID",
+          "type": "STRING",
+          "description": "Protocol/Study identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "SITEID",
+          "type": "STRING",
+          "description": "Site ID",
+          "sensitivity": null
+        },
+        {
+          "name": "SUBJID",
+          "type": "STRING",
+          "description": "Study Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "USUBJID",
+          "type": "STRING",
+          "description": "Unique Subject ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "questionnaire_version",
+          "type": "STRING",
+          "description": "Form version",
+          "sensitivity": null
+        },
+        {
+          "name": "age_at_enrollment",
+          "type": "FLOAT",
+          "description": "Age at enrollment",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "SEX",
+          "type": "STRING",
+          "description": "Sex at birth",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "sex_now_same_as_birth_sex",
+          "type": "STRING",
+          "description": "Sex same as birth?",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "hispanic_ancestry",
+          "type": "STRING",
+          "description": "Hispanic/Latino ancestry",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "RACE",
+          "type": "STRING",
+          "description": "Race",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "how_did_you_first_hear_about_baseline",
+          "type": "STRING",
+          "description": "How heard about Baseline",
+          "sensitivity": null
+        },
+        {
+          "name": "participant_primary_motivation",
+          "type": "STRING",
+          "description": "Primary motivation",
+          "sensitivity": null
+        },
+        {
+          "name": "preferred_contact_means_contact_means_phone",
+          "type": "STRING",
+          "description": "Prefers phone contact",
+          "sensitivity": null
+        },
+        {
+          "name": "preferred_contact_means_contact_means_text_message",
+          "type": "STRING",
+          "description": "Prefers text contact",
+          "sensitivity": null
+        },
+        {
+          "name": "preferred_contact_means_contact_means_email",
+          "type": "STRING",
+          "description": "Prefers email contact",
+          "sensitivity": null
+        },
+        {
+          "name": "preferred_contact_means_contact_means_mail",
+          "type": "STRING",
+          "description": "Prefers mail contact",
+          "sensitivity": null
+        },
+        {
+          "name": "participant_motivation_i_want_to_make_a_difference",
+          "type": "STRING",
+          "description": "Motivation: make a difference",
+          "sensitivity": null
+        },
+        {
+          "name": "participant_motivation_i_am_interested_in_the_research_and_science",
+          "type": "STRING",
+          "description": "Motivation: research/science",
+          "sensitivity": null
+        },
+        {
+          "name": "participant_motivation_i_am_interested_in_learning_about_my_health_if_possible",
+          "type": "STRING",
+          "description": "Motivation: learn about health",
+          "sensitivity": null
+        },
+        {
+          "name": "participant_motivation_i_want_to_test_new_medical_technologies",
+          "type": "STRING",
+          "description": "Motivation: test new tech",
+          "sensitivity": null
+        },
+        {
+          "name": "participant_motivation_i_like_the_idea_of_being_part_of_a_prestigious_ambitious_project",
+          "type": "STRING",
+          "description": "Motivation: prestigious project",
+          "sensitivity": null
+        },
+        {
+          "name": "participant_motivation_i_want_the_gifts_and_compensation",
+          "type": "STRING",
+          "description": "Motivation: compensation",
+          "sensitivity": null
+        },
+        {
+          "name": "participant_motivation_i_have_been_affected_by_illness_or_disease",
+          "type": "STRING",
+          "description": "Motivation: affected by illness",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "participant_motivation_my_family_or_friends_have_been_affected_by_illness_or_disease",
+          "type": "STRING",
+          "description": "Motivation: family illness",
+          "sensitivity": null
+        },
+        {
+          "name": "how_did_you_hear_about_baseline_a_friend_or_family_member",
+          "type": "STRING",
+          "description": "Heard via: friend/family",
+          "sensitivity": null
+        },
+        {
+          "name": "how_did_you_hear_about_baseline_a_community_event",
+          "type": "STRING",
+          "description": "Heard via: community event",
+          "sensitivity": null
+        },
+        {
+          "name": "how_did_you_hear_about_baseline_duke",
+          "type": "STRING",
+          "description": "Heard via: Duke",
+          "sensitivity": null
+        },
+        {
+          "name": "how_did_you_hear_about_baseline_stanford",
+          "type": "STRING",
+          "description": "Heard via: Stanford",
+          "sensitivity": null
+        },
+        {
+          "name": "how_did_you_hear_about_baseline_an_advertisement",
+          "type": "STRING",
+          "description": "Heard via: advertisement",
+          "sensitivity": null
+        },
+        {
+          "name": "how_did_you_hear_about_baseline_my_doctor",
+          "type": "STRING",
+          "description": "Heard via: doctor",
+          "sensitivity": null
+        }
+      ],
+      "joins_to": [
+        "wb-beamish-acorn-6393.admin.COEVAL",
+        "wb-beamish-acorn-6393.analysis.DIAGNOSES",
+        "wb-beamish-acorn-6393.crf.PHQ9",
+        "wb-beamish-acorn-6393.crf.GAD7",
+        "wb-beamish-acorn-6393.crf.PFT",
+        "wb-beamish-acorn-6393.crf.WHODAS",
+        "wb-beamish-acorn-6393.crf.EQ5D",
+        "wb-beamish-acorn-6393.analysis.WHODAS_SCORES"
+      ]
+    },
+    "wb-glittery-carrot-8816.presco.cell_subset_frequencies": {
+      "title": "PRESCO \u2014 Cell Subset Frequencies",
+      "description": "Calculated immune cell subset frequencies for PRESCO participants \u2014 derived from flow/mass cytometry gating strategies. Each row represents the calculated frequency of a specific immune cell subset (e.g., Naive CD4+ T cells, Classical monocytes) for one participant at one visit. The subset_code links to subset_code_name_mapping for full names and marker definitions.",
+      "primary_key": "sample_id + subset_code",
+      "column_count": 4,
+      "columns": [
+        {
+          "name": "sample_id",
+          "type": "STRING",
+          "description": "Sample identifier",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "reportable_formula",
+          "type": "STRING",
+          "description": "Frequency calculation formula",
+          "sensitivity": null
+        },
+        {
+          "name": "subset_code",
+          "type": "STRING",
+          "description": "Immune cell subset code",
+          "sensitivity": null
+        },
+        {
+          "name": "freq",
+          "type": "FLOAT",
+          "description": "Calculated cell frequency",
+          "sensitivity": null
+        }
+      ],
+      "joins_to": [
+        "wb-glittery-carrot-8816.presco.participant_info",
+        "presco.subset_code_name_mapping"
+      ]
+    },
+    "wb-glittery-carrot-8816.presco.participant_info": {
+      "title": "PRESCO \u2014 Participant Info",
+      "description": "Participant demographics and clinical status for the PRESCO (Post-COVID Recovery) immune profiling study. Includes PASC (Long COVID) classification and Progressor status from the CPR publication. This table is the identity anchor for all PRESCO omic data \u2014 participant_id links to subset_id (prefix) in ATACseq, RNAseq, TaPEseq and to sample_id (prefix) in cell_subset_frequencies.",
+      "primary_key": "participant_id",
+      "column_count": 3,
+      "columns": [
+        {
+          "name": "participant_id",
+          "type": "STRING",
+          "description": "Participant identifier",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "pasc",
+          "type": "INTEGER",
+          "description": "PASC (Long COVID) status",
+          "sensitivity": "PHI"
+        },
+        {
+          "name": "progressor",
+          "type": "INTEGER",
+          "description": "Progressor status (CPR publication)",
+          "sensitivity": "PHI"
+        }
+      ],
+      "joins_to": [
+        "wb-glittery-carrot-8816.presco.rnaseq",
+        "wb-glittery-carrot-8816.presco.cell_subset_frequencies",
+        "http://fhir.verily.com/StructureDefinition/presco-atacseq",
+        "http://fhir.verily.com/StructureDefinition/presco-tapeseq"
+      ]
+    },
+    "wb-glittery-carrot-8816.presco.rnaseq": {
+      "title": "PRESCO \u2014 RNAseq Gene Expression",
+      "description": "RNA-seq gene expression values for PRESCO immune cell subsets \u2014 measures transcript abundance per gene per cell subset. Each row contains read counts (for association analysis) and TPM (Transcripts Per Million, for cross-sample comparison) for one gene in one immune cell subset sample. Gene IDs follow Gencode Release 24, with additional ERCC spike-in RNA controls.",
+      "primary_key": "subset_id + gene_id",
+      "column_count": 5,
+      "columns": [
+        {
+          "name": "subset_id",
+          "type": "STRING",
+          "description": "Subset-specific sample ID",
+          "sensitivity": "UID"
+        },
+        {
+          "name": "gene_id",
+          "type": "STRING",
+          "description": "Gencode gene identifier",
+          "sensitivity": null
+        },
+        {
+          "name": "count",
+          "type": "FLOAT",
+          "description": "Expected read count",
+          "sensitivity": null
+        },
+        {
+          "name": "expr",
+          "type": "FLOAT",
+          "description": "TPM expression",
+          "sensitivity": null
+        },
+        {
+          "name": "log_expr",
+          "type": "FLOAT",
+          "description": "Log10 TPM expression",
+          "sensitivity": null
+        }
+      ],
+      "joins_to": [
+        "wb-glittery-carrot-8816.presco.participant_info",
+        "presco.subset_code_name_mapping"
+      ]
+    }
+  },
+  "results": [
+    {
+      "question_id": 1,
+      "level": 1,
+      "level_label": "Simple Exploration",
+      "question": "How many participants are in each study?",
+      "elapsed_seconds": 11.95,
+      "sql": "SELECT 'BHS' AS study, COUNT(DISTINCT USUBJID) AS participant_count\nFROM `wb-beamish-acorn-6393.admin.COEVAL`\n\nUNION ALL\n\nSELECT 'PRESCO' AS study, COUNT(DISTINCT participant_id) AS participant_count\nFROM `wb-glittery-carrot-8816.presco.participant_info`",
+      "response_text": "Here are the participant counts for each study:\n\n| Study | Participant Count |\n| :--- | :--- |\n| BHS | 2502 |\n| PRESCO | 232 |\n\nI determined this by counting the unique participant identifiers in both the Baseline Health Study (BHS) and the PRESCO study datasets.\n\nWould you like to see a demographic breakdown of these participants, for instance, by age or sex?",
+      "metadata_usage": {
+        "tables_in_sql": [
+          "wb-beamish-acorn-6393.admin.COEVAL",
+          "wb-glittery-carrot-8816.presco.participant_info"
+        ],
+        "tables_from_metadata": [
+          "wb-beamish-acorn-6393.admin.COEVAL",
+          "wb-glittery-carrot-8816.presco.participant_info"
+        ],
+        "tables_not_in_metadata": [],
+        "columns_used_per_table": {
+          "wb-beamish-acorn-6393.admin.COEVAL": [
+            "USUBJID"
+          ],
+          "wb-glittery-carrot-8816.presco.participant_info": [
+            "participant_id"
+          ]
+        },
+        "metadata_columns_available": {
+          "wb-beamish-acorn-6393.admin.COEVAL": [
+            "STUDYID",
+            "SITEID",
+            "SUBJID",
+            "USUBJID",
+            "cohort_eligibility",
+            "putative_cohort"
+          ],
+          "wb-glittery-carrot-8816.presco.participant_info": [
+            "participant_id",
+            "pasc",
+            "progressor"
+          ]
+        },
+        "join_keys_used": [
+          {
+            "table": "wb-beamish-acorn-6393.admin.COEVAL",
+            "key": "USUBJID",
+            "role": "primary_key"
+          },
+          {
+            "table": "wb-glittery-carrot-8816.presco.participant_info",
+            "key": "participant_id",
+            "role": "primary_key"
+          }
+        ],
+        "tables_mentioned_in_response": [],
+        "total_metadata_columns_available": 9,
+        "total_metadata_columns_used": 2,
+        "metadata_column_coverage": 0.222
+      },
+      "query_success": true,
+      "row_count": 2,
+      "error_message": null,
+      "scoring_hints": {
+        "identified_relevant_tables": true,
+        "mapped_clinical_concept_to_columns": true,
+        "sql_executed_without_error": true,
+        "explained_reasoning": false,
+        "acknowledged_limitations": false,
+        "results_clinically_sensible": null
+      }
+    }
+  ]
+}

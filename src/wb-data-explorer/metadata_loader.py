@@ -76,6 +76,16 @@ class TableSchema:
     schema_stability: Optional[str] = None  # e.g. "Stable"
     retention_years: Optional[int] = None
     domain_contact: Optional[str] = None
+    # Populated from verily-study-name extension (e.g. "BHS", "PRESCO").
+    # This is an L1 (per-table) attribute today; long-term, study-level context
+    # should be promoted to L2 StructureDefinitions so study metadata (name,
+    # description, ownership) lives in one place rather than being duplicated
+    # across every table JSON. See Decision Log DL-1 in the playbook.
+    study_name: Optional[str] = None
+
+    # Data profile metrics (from companion MeasureReport JSONs)
+    row_count: Optional[int] = None
+    physical_size_bytes: Optional[int] = None
 
 
 # ── FHIR JSON Parsing ────────────────────────────────────────────────────────
@@ -214,6 +224,12 @@ def parse_fhir_structure_definition(json_data: dict) -> Optional[TableSchema]:
         "http://fhir.verily.com/StructureDefinition/verily-primary-identity"
     ) or ""
 
+    # Extract study name (e.g. "BHS", "PRESCO")
+    study_name = _extract_extension_value(
+        extensions,
+        "http://fhir.verily.com/StructureDefinition/verily-study-name"
+    )
+
     # Extract structural links
     join_links = _extract_structural_links(extensions)
 
@@ -247,6 +263,7 @@ def parse_fhir_structure_definition(json_data: dict) -> Optional[TableSchema]:
         schema_stability=use_ctx.get("schema_stability"),
         retention_years=use_ctx.get("retention_years"),
         domain_contact=domain_contact,
+        study_name=study_name,
     )
 
     # Parse columns from differential.element
@@ -298,6 +315,73 @@ def parse_fhir_structure_definition(json_data: dict) -> Optional[TableSchema]:
     return table
 
 
+# ── MeasureReport (Data Profile) Parsing ─────────────────────────────────────
+
+def _parse_data_profile(json_data: dict) -> Optional[tuple[str, int, Optional[int]]]:
+    """
+    Parse a MeasureReport data-profile JSON and extract table-level metrics.
+
+    Returns:
+        Tuple of (profile_id, row_count, physical_size_bytes) or None.
+        profile_id is the StructureDefinition id this profile references
+        (e.g. "bhs-analysis-diagnoses").
+    """
+    if json_data.get("resourceType") != "MeasureReport":
+        return None
+
+    # Extract the referenced StructureDefinition id
+    subject_ref = json_data.get("subject", {}).get("reference", "")
+    if not subject_ref.startswith("StructureDefinition/"):
+        return None
+    profile_id = subject_ref.replace("StructureDefinition/", "")
+
+    row_count: Optional[int] = None
+    size_bytes: Optional[int] = None
+
+    for group in json_data.get("group", []):
+        # Look for the table-metrics group
+        group_code = ""
+        for coding in group.get("code", {}).get("coding", []):
+            group_code = coding.get("code", "")
+        if group_code != "table":
+            continue
+
+        for metric in group.get("group", []):
+            metric_code = ""
+            for coding in metric.get("code", {}).get("coding", []):
+                metric_code = coding.get("code", "")
+            score = metric.get("measureScore", {}).get("value")
+            if score is None:
+                continue
+            if metric_code == "row-count":
+                row_count = int(score)
+            elif metric_code == "physical-size":
+                size_bytes = int(score)
+
+    if row_count is not None:
+        return (profile_id, row_count, size_bytes)
+    return None
+
+
+def _apply_data_profiles(
+    schemas: dict[str, TableSchema],
+    profiles: dict[str, tuple[int, Optional[int]]],
+) -> None:
+    """Attach row_count and physical_size_bytes from data profiles to schemas."""
+    profile_id_to_table: dict[str, TableSchema] = {
+        s.profile_id: s for s in schemas.values()
+    }
+    matched = 0
+    for profile_id, (row_count, size_bytes) in profiles.items():
+        schema = profile_id_to_table.get(profile_id)
+        if schema:
+            schema.row_count = row_count
+            schema.physical_size_bytes = size_bytes
+            matched += 1
+    if matched:
+        print(f"  📊 Attached data profiles (row counts) to {matched} tables")
+
+
 # ── Directory Loading ─────────────────────────────────────────────────────────
 
 def load_metadata_from_json_dir(
@@ -321,6 +405,8 @@ def load_metadata_from_json_dir(
     pattern = "**/*.json" if recursive else "*.json"
     json_files = sorted(json_dir.glob(pattern))
 
+    data_profiles: dict[str, tuple[int, Optional[int]]] = {}
+
     for json_file in json_files:
         try:
             with open(json_file, "r", encoding="utf-8") as f:
@@ -328,15 +414,24 @@ def load_metadata_from_json_dir(
         except (json.JSONDecodeError, UnicodeDecodeError):
             continue
 
+        # Try as StructureDefinition first, then as MeasureReport data profile
         table = parse_fhir_structure_definition(data)
         if table:
             schemas[table.bq_table_name] = table
+        else:
+            profile = _parse_data_profile(data)
+            if profile:
+                pid, rc, sb = profile
+                data_profiles[pid] = (rc, sb)
 
     # Resolve join links: map profile URLs → table names
     url_to_table = {t.profile_url: t.bq_table_name for t in schemas.values()}
     for table in schemas.values():
         for link in table.join_links:
             link.target_table_name = url_to_table.get(link.target_profile_url)
+
+    # Attach data profiles (row counts) to schemas
+    _apply_data_profiles(schemas, data_profiles)
 
     return schemas
 
@@ -375,6 +470,7 @@ def load_metadata_from_gcs(
     blobs = bucket.list_blobs(prefix=prefix)
 
     schemas: dict[str, TableSchema] = {}
+    data_profiles: dict[str, tuple[int, Optional[int]]] = {}
     file_count = 0
 
     for blob in blobs:
@@ -388,10 +484,16 @@ def load_metadata_from_gcs(
             print(f"  ⚠ Skipping {blob.name}: {e}")
             continue
 
+        # Try as StructureDefinition first, then as MeasureReport data profile
         table = parse_fhir_structure_definition(data)
         if table:
             schemas[table.bq_table_name] = table
             file_count += 1
+        else:
+            profile = _parse_data_profile(data)
+            if profile:
+                pid, rc, sb = profile
+                data_profiles[pid] = (rc, sb)
 
     print(f"  ✓ Parsed {file_count} table schemas from {gcs_uri}")
 
@@ -400,6 +502,9 @@ def load_metadata_from_gcs(
     for table in schemas.values():
         for link in table.join_links:
             link.target_table_name = url_to_table.get(link.target_profile_url)
+
+    # Attach data profiles (row counts) to schemas
+    _apply_data_profiles(schemas, data_profiles)
 
     return schemas
 

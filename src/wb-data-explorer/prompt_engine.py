@@ -5,6 +5,14 @@ language, using the metadata context from Step 1.
 
 Also provides the function to call Gemini via Vertex AI.
 
+v2 Changes (from benchmark v1 findings):
+  - Dynamic join rules derived from loaded metadata (not hardcoded study names)
+  - Dynamic large-table awareness from column counts
+  - Cross-study prompting: auto-detects multi-project data and generates rules
+  - Always-execute policy with graceful fallback on access errors
+  - Response format now requires Data Mapping explanation and Limitations
+  - Verbose answers must include sample SQL queries
+
 Usage:
     from metadata_loader import load_metadata_from_json_dir, format_schemas_for_prompt
     from prompt_engine import build_system_prompt, call_gemini
@@ -22,6 +30,7 @@ from metadata_loader import TableSchema, format_schemas_for_prompt
 
 
 # ── System Prompt Template ────────────────────────────────────────────────────
+# Placeholders: {schema_context}, {join_rules}, {large_table_rules}
 
 _SYSTEM_PROMPT_TEMPLATE = """You are a SQL expert and biomedical data analyst working inside Verily Workbench.
 Your job is to help researchers explore data by converting their natural language questions into
@@ -37,11 +46,7 @@ BigQuery SQL queries. You have access to the following datasets.
 
 2. **Use the exact column names** shown above. NEVER invent column names.
 
-3. **Join tables using the Primary Key** listed for each table.
-   - For BHS tables: join on `USUBJID` (and `VISIT` when both tables have it)
-   - For PRESCO tables: join on `participant_id` (or use subset_id prefix parsing)
-   - For Billing tables: join on `athena_id`
-   - Only join tables that have a "Joins To" relationship listed above.
+{join_rules}
 
 4. **Always add LIMIT** to prevent runaway queries:
    - Use `LIMIT 100` by default for exploration queries
@@ -66,9 +71,7 @@ BigQuery SQL queries. You have access to the following datasets.
 
 9. **Date handling** — use BigQuery date functions (DATE, TIMESTAMP, EXTRACT, DATE_DIFF).
 
-10. **Large table awareness**:
-    - `bhs.analysis.DIAGNOSES` has 130 columns — only SELECT the columns the user needs
-    - For omic tables (rnaseq, cell_subset_frequencies), always filter by specific genes/subsets
+{large_table_rules}
 
 ## CRITICAL — ALWAYS EXECUTE QUERIES:
 
@@ -76,26 +79,42 @@ You have tools available. When the user asks a data question:
 1. Write the SQL query
 2. **ALWAYS call the `query_bigquery` tool to execute it** — do NOT just show the SQL
 3. Present the results to the user along with your interpretation
+4. **If the query fails due to access permissions, quota, or other infrastructure errors:**
+   - Still present your SQL query and explain what it does
+   - Explain the error in plain language
+   - Suggest how to resolve the access issue
+   - Do NOT treat infrastructure errors as a failure of the analysis — the researcher
+     still gets value from seeing the query logic and your explanation
 
-NEVER just show SQL without executing it. The user expects to see actual data results.
+NEVER just show SQL without attempting to execute it first.
+
+**When answering questions about data availability or suggesting tables:**
+ALWAYS include a sample SQL query the user can run to explore the data, and execute it
+using the `query_bigquery` tool. Do not give verbose-only answers without a runnable example.
 
 ## RESPONSE FORMAT:
 
 When the user asks a data question:
 
 1. **Understanding**: Brief restatement of what you think the user wants (1-2 sentences)
-2. **Execute**: Call `query_bigquery` with the SQL to run it against BigQuery
-3. **Results**: Summarize what the query returned
-4. **Explanation**: Brief explanation of the query logic and any assumptions made
-5. **Follow-up suggestions**: 1-2 suggestions for what they might want to explore next
+2. **Data Mapping**: Explain which tables and columns you chose and why
+   (e.g., "I mapped 'depression' → PHQ9 table because it contains the PHQ-9 depression questionnaire scores")
+3. **Execute**: Call `query_bigquery` with the SQL to run it against BigQuery
+4. **Results**: Summarize what the query returned
+5. **Limitations**: Note any limitations — missing data, assumptions about clinical thresholds,
+   tables not available, or potential biases in the data
+6. **Follow-up suggestions**: 1-2 suggestions for what they might want to explore next
 
 When the user asks a general question (what tables exist, what does a column mean, etc.),
-answer in natural language using the metadata above. No SQL needed.
+answer in natural language using the metadata above. ALSO include a sample SQL query
+that the user can start with, and execute it.
 
 ## IMPORTANT:
 - If a question is ambiguous, state your assumptions clearly and ask if they're correct.
 - If you're not sure which table or column to use, say so and list the candidates.
 - If a query requires data that doesn't exist in the available tables, say so clearly.
+- Always note any limitations, assumptions, or caveats in your analysis.
+- NEVER assume the researcher knows which studies, tables, or datasets exist — always explain.
 """
 
 _BQ_PROJECT_NOTE = """
@@ -105,12 +124,212 @@ _BQ_PROJECT_NOTE = """
 """
 
 
+# ── Dynamic Rule Builders ────────────────────────────────────────────────────
+
+def _analyze_data_landscape(schemas: dict[str, TableSchema]) -> dict:
+    """
+    Analyze loaded schemas to understand the multi-study data landscape.
+    Returns a dict with structured info about projects, primary keys,
+    large tables, and omic tables — used to generate dynamic prompt rules.
+    """
+    # Group tables by GCP project (= study)
+    projects: dict[str, list[tuple[str, TableSchema]]] = {}
+    for fq_name, schema in schemas.items():
+        parts = fq_name.split(".")
+        project = parts[0] if len(parts) >= 3 else "default"
+        projects.setdefault(project, []).append((fq_name, schema))
+
+    # Extract study names from metadata (verily-study-name extension).
+    # NOTE: Currently each table JSON carries its own study name (L1 metadata).
+    # As the number of studies grows, this should migrate to L2 (study-level)
+    # StructureDefinitions that tables reference via canonical URL, providing
+    # a single source of truth for study name, description, PI, and governance.
+    # See Decision Log DL-1 in metadata_json_creation_playbook.md.
+    study_names: dict[str, set[str]] = {}
+    for project, tables in projects.items():
+        names: set[str] = set()
+        for _, schema in tables:
+            if schema.study_name:
+                names.add(schema.study_name)
+        study_names[project] = names
+
+    # Group tables by primary key
+    pk_groups: dict[str, list[str]] = {}
+    for fq_name, schema in schemas.items():
+        pk = schema.primary_key
+        if pk:
+            pk_groups.setdefault(pk, []).append(fq_name)
+
+    # Identify large tables (>50 columns)
+    large_tables = [
+        (n, s) for n, s in schemas.items() if len(s.columns) > 50
+    ]
+
+    # Identify high-volume tables from MeasureReport data profiles (row counts).
+    # Threshold: tables with >100,000 rows get an explicit "always filter" warning.
+    # This replaces the old hardcoded keyword list; volume is now metadata-driven.
+    HIGH_VOLUME_THRESHOLD = 100_000
+    high_volume_tables = [
+        (n, s) for n, s in schemas.items()
+        if s.row_count is not None and s.row_count > HIGH_VOLUME_THRESHOLD
+    ]
+
+    return {
+        "projects": projects,
+        "study_names": study_names,
+        "pk_groups": pk_groups,
+        "large_tables": large_tables,
+        "high_volume_tables": high_volume_tables,
+    }
+
+
+def _build_join_rules(
+    schemas: dict[str, TableSchema],
+    landscape: dict,
+) -> str:
+    """
+    Build dynamic join rules (Rule 3) from the loaded metadata.
+
+    Instead of hardcoding "For BHS tables: join on USUBJID", this function
+    discovers primary keys, table groupings, and cross-study boundaries
+    from the metadata itself.
+    """
+    pk_groups = landscape["pk_groups"]
+    projects = landscape["projects"]
+    study_names = landscape["study_names"]
+
+    lines = []
+    lines.append("3. **Join tables using the Primary Key** listed for each table.")
+
+    # Primary key groups
+    for pk, tables in sorted(pk_groups.items(), key=lambda x: -len(x[1])):
+        short_names = [t.split(".")[-1] for t in tables]
+        if len(tables) > 1:
+            # Check if tables in this PK group share a VISIT column
+            has_visit = []
+            for t in tables:
+                schema = schemas.get(t)
+                if schema and any(
+                    c.name.upper() in ("VISIT", "VISITNUM") for c in schema.columns
+                ):
+                    has_visit.append(t.split(".")[-1])
+
+            lines.append(
+                f"   - Tables sharing key `{pk}` ({len(tables)} tables): "
+                f"{', '.join(short_names)}"
+            )
+            if has_visit:
+                lines.append(
+                    f"     → Join on `{pk}` (and `VISIT` when both tables have it "
+                    f"for visit-level precision)"
+                )
+            else:
+                lines.append(f"     → Join on `{pk}`")
+        else:
+            lines.append(f"   - `{short_names[0]}` uses key `{pk}`")
+
+    lines.append(
+        '   - Only join tables that share a primary key or have a '
+        '"Joins To" relationship listed above.'
+    )
+
+    # Cross-study awareness (auto-detected from multiple projects)
+    if len(projects) > 1:
+        lines.append("")
+        lines.append("   **CROSS-STUDY DATA — IMPORTANT:**")
+        lines.append(
+            "   The data spans multiple independent studies stored in "
+            "separate GCP projects:"
+        )
+
+        for proj, tbls in sorted(projects.items()):
+            pks = sorted(set(s.primary_key for _, s in tbls if s.primary_key))
+            short_names = [t.split(".")[-1] for t, _ in tbls]
+            names = study_names.get(proj, set())
+            label = " / ".join(sorted(names)) if names else proj
+
+            lines.append(
+                f"   - **{label}** (project: `{proj}`, {len(tbls)} tables)"
+            )
+            lines.append(
+                f"     Keys: `{'`, `'.join(pks)}`  |  "
+                f"Tables: {', '.join(short_names)}"
+            )
+
+        lines.append("")
+        lines.append(
+            "   These studies use **different participant identifiers**. "
+            "Participants cannot be directly linked across studies."
+        )
+        lines.append(
+            "   When the user asks about 'all studies', 'across studies', "
+            "'both studies', or 'combined':"
+        )
+        lines.append(
+            "   - You MUST include data from ALL available studies in your query"
+        )
+        lines.append(
+            "   - Use UNION ALL to combine per-study results where possible"
+        )
+        lines.append(
+            "   - If data domains don't overlap between studies, explain what "
+            "each study offers and why a combined query isn't feasible"
+        )
+        lines.append(
+            "   - NEVER assume the researcher knows which studies or projects "
+            "exist — always name and describe them"
+        )
+
+    return "\n".join(lines)
+
+
+def _build_large_table_rules(landscape: dict) -> str:
+    """
+    Build dynamic large-table awareness rules (Rule 10) from metadata.
+
+    Instead of hardcoding "bhs.analysis.DIAGNOSES has 130 columns", this
+    discovers large and omic tables automatically.
+    """
+    large_tables = landscape["large_tables"]
+    high_volume_tables = landscape["high_volume_tables"]
+
+    if not large_tables and not high_volume_tables:
+        return ""
+
+    lines = ["10. **Large table awareness**:"]
+    seen = set()
+
+    for fq_name, schema in large_tables:
+        short = fq_name.split(".")[-1]
+        lines.append(
+            f"    - `{short}` has {len(schema.columns)} columns — "
+            f"only SELECT the columns the user needs"
+        )
+        seen.add(fq_name)
+
+    for fq_name, schema in high_volume_tables:
+        if fq_name not in seen:
+            short = fq_name.split(".")[-1]
+            row_str = f"{schema.row_count:,}" if schema.row_count else "many"
+            lines.append(
+                f"    - `{short}` ({row_str} rows, high-volume data) — always "
+                f"apply filters; never SELECT * without WHERE clause"
+            )
+
+    return "\n".join(lines)
+
+
+# ── Public API ───────────────────────────────────────────────────────────────
+
 def build_system_prompt(
     schemas: dict[str, TableSchema],
     bq_project_id: Optional[str] = None,
 ) -> str:
     """
     Build the complete system prompt with metadata context.
+
+    All rules about join keys, study names, and table sizes are derived
+    dynamically from the loaded schemas — nothing is hardcoded.
 
     Args:
         schemas: Table schemas from metadata_loader.
@@ -121,7 +340,16 @@ def build_system_prompt(
     """
     schema_context = format_schemas_for_prompt(schemas)
 
-    prompt = _SYSTEM_PROMPT_TEMPLATE.format(schema_context=schema_context)
+    # Analyze the loaded schemas to build dynamic rules
+    landscape = _analyze_data_landscape(schemas)
+    join_rules = _build_join_rules(schemas, landscape)
+    large_table_rules = _build_large_table_rules(landscape)
+
+    prompt = _SYSTEM_PROMPT_TEMPLATE.format(
+        schema_context=schema_context,
+        join_rules=join_rules,
+        large_table_rules=large_table_rules,
+    )
 
     if bq_project_id:
         prompt += _BQ_PROJECT_NOTE.format(project_id=bq_project_id)
@@ -314,4 +542,3 @@ if __name__ == "__main__":
         if sql:
             print("\n📋 Extracted SQL:")
             print(sql)
-
