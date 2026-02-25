@@ -1,0 +1,16 @@
+# WB Metadata Creator — Dependencies
+# Prompt engine + LLM
+google-cloud-aiplatform>=1.60.0
+google-genai>=1.0.0
+# BigQuery schema introspection + data profiles
+google-cloud-bigquery>=3.25.0
+google-cloud-storage>=2.14.0
+pandas>=2.0.0
+db-dtypes>=1.2.0
+# Gradio UI
+gradio>=5.0.0
+# LangGraph agent (chat refinement)
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-google-genai>=2.0.0
+langchain-google-vertexai>=3.0.0

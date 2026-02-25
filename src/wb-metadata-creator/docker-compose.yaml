@@ -1,0 +1,37 @@
+services:
+  app:
+    # The container name must be "application-server"
+    container_name: "application-server"
+    build:
+      context: .
+    restart: always
+    # Gradio app port
+    ports:
+      - "8080:8080"
+    environment:
+      # GCP project for billing (BQ jobs, Vertex AI LLM calls)
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      # Data project IDs where BigQuery tables live (space-separated)
+      - DATA_PROJECT_IDS=${DATA_PROJECT_IDS:-wb-shrewd-papaya-8403}
+      # Existing metadata (GCS URI or local path) for cross-reference
+      - METADATA_SOURCE=${METADATA_SOURCE:-gs://metadata-json-wb-shrewd-papaya-8403}
+      # Output GCS bucket for saving generated FHIR metadata
+      - OUTPUT_GCS_BUCKET=${OUTPUT_GCS_BUCKET:-}
+      # LLM model (Vertex AI)
+      - LLM_MODEL=${LLM_MODEL:-gemini-2.5-pro}
+      # Google ADC is automatically available in Workbench
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+    networks:
+      - app-network
+    # Required by Workbench for resource mounting
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+
+networks:
+  # The Docker network must be named "app-network"
+  app-network:
+    external: true

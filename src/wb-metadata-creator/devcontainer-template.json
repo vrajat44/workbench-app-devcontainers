@@ -1,0 +1,21 @@
+{
+  "id": "wb-metadata-creator",
+  "version": "1.0.0",
+  "name": "WB Metadata Creator",
+  "description": "FHIR metadata creator for BigQuery datasets. Profiles tables, generates StructureDefinitions, ValueSets, ConceptMaps, and DataProfiles using Gradio + Gemini.",
+  "options": {
+    "cloud": {
+      "type": "string",
+      "enum": ["gcp", "aws"],
+      "default": "gcp",
+      "description": "Cloud provider (gcp or aws)"
+    },
+    "login": {
+      "type": "string",
+      "description": "Whether to log in to workbench CLI",
+      "proposals": ["true", "false"],
+      "default": "false"
+    }
+  },
+  "platforms": ["Any"]
+}

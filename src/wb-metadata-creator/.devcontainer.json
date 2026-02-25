@@ -1,0 +1,9 @@
+{
+  "name": "WB Metadata Creator",
+  "dockerComposeFile": "docker-compose.yaml",
+  "service": "app",
+  "shutdownAction": "none",
+  "workspaceFolder": "/app",
+  "overrideCommand": false,
+  "remoteUser": "root"
+}
