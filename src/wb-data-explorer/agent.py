@@ -242,7 +242,7 @@ def create_agent(
         project=bq_project_id,
         location="us-central1",
         temperature=0.1,
-        max_output_tokens=4096,
+        max_output_tokens=65536,
     )
     llm_with_tools = llm.bind_tools(tools)
 

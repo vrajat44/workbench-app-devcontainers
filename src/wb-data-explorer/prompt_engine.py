@@ -406,7 +406,7 @@ def call_gemini(
     project_id: Optional[str] = None,
     location: str = "us-central1",
     temperature: float = 0.1,
-    max_output_tokens: int = 4096,
+    max_output_tokens: int = 65536,
 ) -> str:
     """
     Call Gemini via the google-genai SDK (Vertex AI backend).
