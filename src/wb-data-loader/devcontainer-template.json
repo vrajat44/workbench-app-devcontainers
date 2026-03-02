@@ -1,0 +1,21 @@
+{
+  "id": "wb-data-loader",
+  "version": "1.0.0",
+  "name": "WB Data Loader",
+  "description": "ETL app for ingesting data from 600+ sources (S3, GCS, databases, SaaS APIs) into BigQuery using PyAirbyte connectors. Built with Gradio.",
+  "options": {
+    "cloud": {
+      "type": "string",
+      "enum": ["gcp", "aws"],
+      "default": "gcp",
+      "description": "Cloud provider (gcp or aws)"
+    },
+    "login": {
+      "type": "string",
+      "description": "Whether to log in to workbench CLI",
+      "proposals": ["true", "false"],
+      "default": "false"
+    }
+  },
+  "platforms": ["Any"]
+}

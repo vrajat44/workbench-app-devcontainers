@@ -1,0 +1,31 @@
+services:
+  app:
+    # The container name must be "application-server"
+    container_name: "application-server"
+    build:
+      context: .
+    restart: always
+    # Gradio app port
+    ports:
+      - "8080:8080"
+    environment:
+      # BigQuery project for loading data
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      # Default BigQuery dataset
+      - BQ_DATASET=${BQ_DATASET:-}
+      # Google ADC is automatically available in Workbench
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+    networks:
+      - app-network
+    # Required by Workbench for resource mounting
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+
+networks:
+  # The Docker network must be named "app-network"
+  app-network:
+    external: true
