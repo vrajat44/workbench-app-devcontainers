@@ -1,0 +1,7 @@
+# WB Lineage Explorer — Dependencies
+google-cloud-bigquery>=3.25.0
+db-dtypes>=1.2.0
+pandas>=2.0.0
+gradio>=5.0.0
+pyvis>=0.3.2
+networkx>=3.0

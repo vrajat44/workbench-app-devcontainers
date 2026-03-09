@@ -1,0 +1,21 @@
+{
+  "id": "wb-lineage-explorer",
+  "version": "1.0.0",
+  "name": "WB Lineage Explorer",
+  "description": "Visual FHIR data lineage explorer using Provenance tables from BigQuery. Trace high-level resource flows and instance-level lineage chains. Built with Gradio + Pyvis.",
+  "options": {
+    "cloud": {
+      "type": "string",
+      "enum": ["gcp", "aws"],
+      "default": "gcp",
+      "description": "Cloud provider (gcp or aws)"
+    },
+    "login": {
+      "type": "string",
+      "description": "Whether to log in to workbench CLI",
+      "proposals": ["true", "false"],
+      "default": "false"
+    }
+  },
+  "platforms": ["Any"]
+}
