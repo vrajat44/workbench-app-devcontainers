@@ -1,0 +1,7 @@
+{
+  "id": "wb-data-catalog-v2",
+  "version": "1.0.0",
+  "name": "WB Data Catalog v2",
+  "description": "React + FastAPI data catalog (v2): BigQuery discovery, profiling (GCS), charts, chat. Port 8080.",
+  "options": {}
+}
