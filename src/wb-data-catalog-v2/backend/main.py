@@ -1261,7 +1261,8 @@ CATALOG CONTEXT:
     import vertexai
     from vertexai.generative_models import GenerativeModel
 
-    vertexai.init(project=BILLING_PROJECT, location="us")
+    from verily_profiler.llm import _get_location
+    vertexai.init(project=BILLING_PROJECT, location=_get_location())
     gen_model = GenerativeModel(model)
 
     user_prompt = f"Generate a cohort COUNT query for: {query}"

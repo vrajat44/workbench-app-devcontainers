@@ -147,7 +147,7 @@ def create_chat_agent(
     context: ChatContext,
     model: str = "gemini-3.5-flash",
     project_id: str | None = None,
-    location: str = "us",
+    location: str = "",
 ):
     """
     Create a LangGraph agent with BigQuery tools.
@@ -167,10 +167,13 @@ def create_chat_agent(
     system_prompt = build_catalog_system_prompt(context, mode="agent")
     tools = _make_tools(context, bp)
 
+    from verily_profiler.llm import _get_location
+    loc = location or _get_location()
+
     llm = ChatVertexAI(
         model_name=model,
         project=bp,
-        location=location,
+        location=loc,
         temperature=0.1,
         max_output_tokens=65536,
     )
