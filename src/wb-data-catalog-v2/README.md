@@ -2,7 +2,7 @@
 
 Self-service data catalog for BigQuery datasets on Verily Workbench. Browse datasets, profile tables with AI-generated metadata, explore data visually, and query with natural language.
 
-**For usage instructions, see [USAGE_GUIDE.md](USAGE_GUIDE.md).**
+**[Install on Workbench](INSTALL_GUIDE.md)** | **[Usage Guide](USAGE_GUIDE.md)**
 
 ## What it does
 
