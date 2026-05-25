@@ -5,7 +5,7 @@
     "workspaceFolder": "/workspace",
     "forwardPorts": [8080],
     "postCreateCommand": "pip install --no-cache-dir -r /workspace/backend/requirements.txt && cd /workspace/frontend && npm install && npm run build && mkdir -p /workspace/backend/static && cp -r dist/* /workspace/backend/static/",
-    "postStartCommand": "cd /workspace/backend && FRONTEND_DIST=/workspace/backend/static ./start.sh",
+    "postStartCommand": "cd /workspace/backend && FRONTEND_DIST=/workspace/backend/static /workspace/start.sh",
     "customizations": {
         "vscode": {
             "extensions": [
