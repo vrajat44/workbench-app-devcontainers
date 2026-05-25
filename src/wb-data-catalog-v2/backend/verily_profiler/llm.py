@@ -16,8 +16,8 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _LOCATION_MODEL_CHAIN = [
-    ("global", "gemini-3.5-flash"),
     ("us-central1", "gemini-2.5-flash"),
+    ("global", "gemini-3.5-flash"),
 ]
 
 _resolved_location: Optional[str] = None
