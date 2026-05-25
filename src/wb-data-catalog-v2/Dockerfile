@@ -1,13 +1,13 @@
 # WB Data Catalog — multi-stage: Vite frontend + FastAPI backend
 FROM node:20-bookworm-slim AS frontend-build
 WORKDIR /build
-COPY frontend/package.json ./
-RUN npm install --no-audit --no-fund
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
 FROM python:3.11-slim-bookworm
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl build-essential && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
