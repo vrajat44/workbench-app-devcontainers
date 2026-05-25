@@ -4,7 +4,7 @@
     "service": "app",
     "workspaceFolder": "/workspace",
     "forwardPorts": [8080],
-    "postCreateCommand": "cd /app && pip install --no-cache-dir -r requirements.txt && pip install -e /workspace/packages/verily-profiler && pip install -e '/workspace/packages/verily-chat[agent]' && cd /workspace/frontend && npm install",
+    "postCreateCommand": "cd /app && pip install --no-cache-dir -r requirements.txt && cd /workspace/frontend && npm install",
     "postStartCommand": "cd /app && ./start.sh",
     "customizations": {
         "vscode": {
