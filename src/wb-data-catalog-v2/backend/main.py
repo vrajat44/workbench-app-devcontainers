@@ -90,7 +90,8 @@ PROFILE_BUCKET = ""
 BILLING_PROJECT: str = ""
 DATA_PROJECT: str = ""
 GEMINI_MODEL: Optional[str] = None      # for profiling (tech + semantic)
-CHAT_MODEL: Optional[str] = None         # for chat (None = use verily-chat default 3.1-pro)
+GEMINI_LOCATION: Optional[str] = None   # Vertex AI location (us-central1, global, etc.)
+CHAT_MODEL: Optional[str] = None         # for chat (None = use auto-detected)
 PROJECT_DISPLAY_NAME: str = ""
 FRONTEND_DIST = Path(
     os.environ.get("FRONTEND_DIST", str(Path(__file__).resolve().parent / "static")),
@@ -190,7 +191,7 @@ def _prewarm_caches():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global BILLING_PROJECT, DATA_PROJECT, GEMINI_MODEL, CHAT_MODEL, PROFILE_BUCKET, PROJECT_DISPLAY_NAME
+    global BILLING_PROJECT, DATA_PROJECT, GEMINI_MODEL, GEMINI_LOCATION, CHAT_MODEL, PROFILE_BUCKET, PROJECT_DISPLAY_NAME
     BILLING_PROJECT = os.environ.get("GCP_PROJECT_ID") or os.environ.get("BILLING_PROJECT_ID", "")
     if not BILLING_PROJECT:
         BILLING_PROJECT = _detect_current_workspace_project()
@@ -201,6 +202,9 @@ async def lifespan(app: FastAPI):
         logger.info(f"Using default billing project: {BILLING_PROJECT}")
     DATA_PROJECT = (os.environ.get("DATA_PROJECT_ID") or "").strip() or BILLING_PROJECT
     GEMINI_MODEL = os.environ.get("GEMINI_MODEL") or None
+    GEMINI_LOCATION = os.environ.get("GEMINI_LOCATION") or None
+    from verily_profiler.llm import set_model_settings
+    set_model_settings(GEMINI_MODEL, GEMINI_LOCATION)
     CHAT_MODEL = os.environ.get("CHAT_MODEL") or None
     PROFILE_BUCKET = _derive_bucket(BILLING_PROJECT)
     if not BILLING_PROJECT:
@@ -380,6 +384,7 @@ def api_config():
         "data_project_name": PROJECT_DISPLAY_NAME,
         "profile_bucket": PROFILE_BUCKET,
         "gemini_model": GEMINI_MODEL,
+        "gemini_location": GEMINI_LOCATION,
         "configured": bool(BILLING_PROJECT),
         "default_billing_project": DEFAULT_BILLING_PROJECT,
     }
@@ -459,7 +464,7 @@ def api_update_settings(body: dict[str, Any]):
     Update runtime settings from the UI.
     Accepts: { billing_project?, data_project?, gemini_model? }
     """
-    global BILLING_PROJECT, DATA_PROJECT, GEMINI_MODEL, PROFILE_BUCKET, PROJECT_DISPLAY_NAME
+    global BILLING_PROJECT, DATA_PROJECT, GEMINI_MODEL, GEMINI_LOCATION, PROFILE_BUCKET, PROJECT_DISPLAY_NAME
     if "billing_project" in body:
         BILLING_PROJECT = str(body["billing_project"]).strip()
         PROFILE_BUCKET = _derive_bucket(BILLING_PROJECT)
@@ -471,6 +476,11 @@ def api_update_settings(body: dict[str, Any]):
     if "gemini_model" in body:
         val = str(body["gemini_model"]).strip()
         GEMINI_MODEL = val if val else None
+    if "gemini_location" in body:
+        val = str(body["gemini_location"]).strip()
+        GEMINI_LOCATION = val if val and val != "auto" else None
+    from verily_profiler.llm import set_model_settings
+    set_model_settings(GEMINI_MODEL, GEMINI_LOCATION)
 
     bucket_status: dict[str, Any] = {}
     if BILLING_PROJECT and PROFILE_BUCKET:

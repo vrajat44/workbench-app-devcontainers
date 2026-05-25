@@ -42,7 +42,7 @@ const selectStyle: React.CSSProperties = {
 
 export function SettingsPanel(props: {
   config: ApiConfig | null;
-  onSave: (patch: { billing_project?: string; data_project?: string; gemini_model?: string }) => Promise<SaveResult>;
+  onSave: (patch: { billing_project?: string; data_project?: string; gemini_model?: string; gemini_location?: string }) => Promise<SaveResult>;
   onSaved: () => void;
 }) {
   const c = props.config;
@@ -62,7 +62,7 @@ export function SettingsPanel(props: {
 
   const [selectedDataProject, setSelectedDataProject] = useState(c?.data_project ?? "");
   const [model, setModel] = useState(c?.gemini_model ?? "");
-  const [location, setLocation] = useState("auto");
+  const [location, setLocation] = useState(c?.gemini_location || "auto");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [bucketMsg, setBucketMsg] = useState<string | null>(null);
@@ -88,6 +88,7 @@ export function SettingsPanel(props: {
         billing_project: billingProject,
         data_project: dataProject,
         gemini_model: model.trim(),
+        gemini_location: location === "auto" ? "" : location,
       });
       const bs = result.bucket_status;
       if (bs) {

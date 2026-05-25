@@ -4,6 +4,7 @@ export interface ApiConfig {
   data_project_name?: string;
   profile_bucket: string;
   gemini_model: string | null;
+  gemini_location?: string | null;
   configured: boolean;
   default_billing_project?: string;
 }

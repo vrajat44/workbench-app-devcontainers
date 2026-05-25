@@ -20,8 +20,25 @@ _LOCATION_MODEL_CHAIN = [
     ("global", "gemini-3.5-flash"),
 ]
 
+MODEL_LOCATION_MAP = {
+    "gemini-2.5-flash": "us-central1",
+    "gemini-2.5-pro": "us-central1",
+    "gemini-3.5-flash": "global",
+    "gemini-3.5-pro": "global",
+}
+
 _resolved_location: Optional[str] = None
 _resolved_model: Optional[str] = None
+
+_settings_model: Optional[str] = None
+_settings_location: Optional[str] = None
+
+
+def set_model_settings(model: Optional[str], location: Optional[str]):
+    """Called by main.py when user saves Settings. Overrides auto-detect."""
+    global _settings_model, _settings_location
+    _settings_model = model if model else None
+    _settings_location = location if location and location != "auto" else None
 
 
 def _get_client(project_id: Optional[str], location: str):
@@ -32,7 +49,9 @@ def _get_client(project_id: Optional[str], location: str):
 def detect_available_model(
     project_id: Optional[str] = None,
 ) -> str:
-    """Probe Vertex AI for the best available Gemini model, trying global then regional."""
+    """Return the user-configured model, or probe Vertex AI for the best available."""
+    if _settings_model:
+        return _settings_model
     global _resolved_location, _resolved_model
 
     if _resolved_model and _resolved_location:
@@ -81,8 +100,8 @@ def call_gemini(
     """Call Gemini via the google-genai SDK (Vertex AI backend)."""
     from google.genai.types import GenerateContentConfig
 
-    loc = location or _get_location()
-    model = model_name or _resolved_model or "gemini-2.5-flash"
+    model = model_name or _settings_model or _resolved_model or "gemini-2.5-flash"
+    loc = location or _settings_location or MODEL_LOCATION_MAP.get(model) or _get_location()
 
     client = _get_client(project_id, loc)
     config = GenerateContentConfig(
