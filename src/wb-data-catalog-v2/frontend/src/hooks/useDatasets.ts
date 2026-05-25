@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiConfig, CatalogResponse } from "../types/catalog";
 
 export function useConfig() {
@@ -44,16 +44,23 @@ export function useCatalog(dataProject: string, refreshKey = 0) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const prevProject = useRef(dataProject);
+
   useEffect(() => {
     if (!dataProject) {
       setData(null);
+      setLoading(false);
       return;
     }
-    let cancelled = false;
+    const projectChanged = prevProject.current !== dataProject;
+    prevProject.current = dataProject;
+
+    if (projectChanged) setData(null);
     setLoading(true);
     setErr(null);
-    setData(null);
-    fetch("/api/catalog")
+
+    let cancelled = false;
+    fetch(refreshKey > 0 ? "/api/catalog?refresh=true" : "/api/catalog")
       .then(async (r) => {
         if (!r.ok) throw new Error(await r.text());
         return r.json();

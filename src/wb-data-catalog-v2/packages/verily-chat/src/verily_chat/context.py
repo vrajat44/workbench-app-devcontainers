@@ -56,39 +56,20 @@ to execute SQL queries against BigQuery.
 
 2. **Use the exact column names** shown above. NEVER invent column names.
 
-3. **Join tables using Structural Links** listed for each table.
-   Prefer `entity_key` links (shared subject/patient IDs) over `foreign_key` links.
-   Only join tables that have a structural link or join_path listed above.
-   When joining on entity_anchor columns that have different names across tables
-   (e.g., SUBJID in one table, USUBJID in another), use the exact column names
-   shown in the structural links.
+3. **Join tables using the Primary Key** listed for each table.
+   Only join tables that share a primary key or have a join path listed above.
 
-4. **Use cohort_dimensions for filtering** — when the user asks to filter by
-   a category (e.g., sex, diagnosis, status), use columns listed as
-   cohort_dimensions. Check their value_set_binding for valid values rather
-   than guessing. For example, if value_set_binding = ["Male", "Female"],
-   use those exact values in WHERE clauses.
-
-5. **Use concept_binding for cross-table matching** — when the user asks about
-   a concept (e.g., "PHQ-9 scores", "depression data"), look for columns with
-   matching concept_binding codes across tables. Two columns with the same
-   concept_binding.code represent the same concept even if named differently.
-
-6. **Check measurement_method for comparability** — when comparing values from
-   different tables, note if the measurement_methods differ (e.g., self-reported
-   vs lab-measured). Warn the user about comparability.
-
-7. **Always add LIMIT** to prevent runaway queries:
+4. **Always add LIMIT** to prevent runaway queries:
    - Use `LIMIT 100` by default for exploration queries
    - Use `LIMIT 1000` for aggregation source data
    - Only omit LIMIT when the user explicitly asks for all rows
 
-8. **Handle NULL values** — use IFNULL, COALESCE, or explicit IS NOT NULL.
+5. **Handle NULL values** — use IFNULL, COALESCE, or explicit IS NOT NULL.
 
-9. **Sensitive columns** (marked [PHI], [PII], [UID]) — note their sensitivity
+6. **Sensitive columns** (marked [PHI], [PII], [UID]) — note their sensitivity
    in your response but still include them in queries when necessary.
 
-10. **Date handling** — use BigQuery date functions (DATE, TIMESTAMP, EXTRACT, DATE_DIFF).
+7. **Date handling** — use BigQuery date functions (DATE, TIMESTAMP, EXTRACT, DATE_DIFF).
 
 {large_table_rules}
 
@@ -204,36 +185,6 @@ def format_table_for_prompt(
             cols_str = ", ".join(pk["columns"])
             lines.append(f"Primary Key: {cols_str} ({pk.get('pk_type', 'unknown')}, {pk.get('confidence', 'low')} confidence)")
 
-        if sem.get("entity_anchor"):
-            etype = sem.get("entity_type", "")
-            etype_str = f" ({etype})" if etype else ""
-            lines.append(f"Entity Anchor: {sem['entity_anchor']}{etype_str}")
-
-        cohort_dims = sem.get("cohort_dimensions", [])
-        if cohort_dims:
-            lines.append(f"Cohort Dimensions: {', '.join(cohort_dims[:20])}")
-            cols_with_vs = []
-            for dim in cohort_dims[:10]:
-                col = next((c for c in sem.get("columns", []) if c.get("name") == dim), None)
-                if col and col.get("value_set_binding"):
-                    vals = col["value_set_binding"]
-                    vals_str = ", ".join(str(v) for v in vals[:6])
-                    if len(vals) > 6:
-                        vals_str += f" +{len(vals)-6} more"
-                    cols_with_vs.append(f"  {dim}: [{vals_str}]")
-            if cols_with_vs:
-                lines.append("Value Sets:")
-                lines.extend(cols_with_vs)
-
-        structural_links = sem.get("structural_links", [])
-        if structural_links:
-            lines.append("Structural Links:")
-            for sl in structural_links[:10]:
-                lines.append(
-                    f"  {sl.get('source_column', '')} → {sl.get('target_table', '')}.{sl.get('target_column', '')} "
-                    f"({sl.get('link_type', '')}, {sl.get('cardinality', '')}, {sl.get('confidence', '')})"
-                )
-
     if tech:
         parts: list[str] = []
         rc = tech.get("row_count")
@@ -321,22 +272,10 @@ def _format_column(name: str, tc: Optional[dict], sc: Optional[dict]) -> str:
             stats_parts.append(f"Anomalies: {', '.join(tc['anomalies'])}")
 
     if sc:
-        cb = sc.get("concept_binding")
-        if cb and cb.get("system") and cb.get("code"):
-            sys_short = cb["system"].split("/")[-1]
-            stats_parts.append(f"Concept[Fixed]: {sys_short}:{cb['code']} ({cb.get('display', '')})")
-        csb = sc.get("code_system_binding")
-        if csb and csb.get("system"):
-            sys_short = csb["system"].split("/")[-1]
-            stats_parts.append(f"Concept[CodeSystem]: {sys_short} ({csb.get('display', '')})")
-        if not cb and not csb:
-            terms = sc.get("terminology_bindings", [])
-            if terms:
-                sys_names = [t.get("system", "").split("/")[-1] for t in terms[:3]]
-                stats_parts.append(f"Terminology: {', '.join(sys_names)}")
-
-        if sc.get("measurement_method"):
-            stats_parts.append(f"Method: {sc['measurement_method']}")
+        terms = sc.get("terminology_bindings", [])
+        if terms:
+            sys_names = [t.get("system", "").split("/")[-1] for t in terms[:3]]
+            stats_parts.append(f"Terminology: {', '.join(sys_names)}")
 
         joins = sc.get("join_paths", [])
         if joins:

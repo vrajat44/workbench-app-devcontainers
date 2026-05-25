@@ -1,11 +1,17 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FilterBar } from "../components/FilterBar";
 import { BulkActionBar, BulkProgressDrawer } from "../components/BulkProfileBar";
+import Onboarding from "../components/Onboarding";
+import { HelpIcon } from "../components/HelpSystem";
 import { Badge, Card } from "../components/rds";
 import { useBulkProfile } from "../hooks/useBulkProfile";
 import type { BulkMode } from "../types/bulk";
-import type { ApiConfig, CatalogDataset, CatalogTable } from "../types/catalog";
+import type { DatasetStub } from "../hooks/useProgressiveCatalog";
+import type { ApiConfig, CatalogTable } from "../types/catalog";
+
+const PAGE_SIZE = 50;
+const BULK_POLL_INTERVAL = 5000;
 
 function matchesFilter(t: CatalogTable, state: "all" | "none" | "tech" | "full") {
   const tech = t.profiling.technical;
@@ -35,29 +41,63 @@ function formatSize(bytes: number | null) {
 
 export default function CatalogHome(props: {
   config: ApiConfig | null;
-  datasets: CatalogDataset[];
-  loading: boolean;
+  catalog: { datasets: DatasetStub[]; loadingDatasets: boolean; loadDataset: (id: string) => void; loadAll: () => void };
   onRefresh?: () => void;
 }) {
+  const { datasets: dsStubs, loadingDatasets, loadDataset } = props.catalog;
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | "none" | "tech" | "full">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const [onboardingDismissed, setOnboardingDismissed] = useState(
+    () => localStorage.getItem("dc_onboarding_dismissed") === "true"
+  );
 
   const bulk = useBulkProfile(props.onRefresh);
 
+  const allTables = useMemo(() => dsStubs.flatMap((ds) => ds.tables), [dsStubs]);
+  const totalTables = allTables.length;
+  const totalDatasets = dsStubs.length;
+  const profiledCount = useMemo(
+    () => allTables.filter((t) => t.profiling.technical === "available").length,
+    [allTables],
+  );
+
+  const showOnboarding = !loadingDatasets && totalDatasets > 0 && totalTables > 0 && profiledCount === 0 && !onboardingDismissed;
+
+  useEffect(() => {
+    if (!bulk.loading || !props.onRefresh) return;
+    const id = setInterval(() => props.onRefresh?.(), BULK_POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [bulk.loading, props.onRefresh]);
+
+  const toggleExpand = useCallback((dsId: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(dsId)) {
+        next.delete(dsId);
+      } else {
+        next.add(dsId);
+        loadDataset(dsId);
+      }
+      return next;
+    });
+  }, [loadDataset]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return props.datasets.map((ds) => ({
+    return dsStubs.map((ds) => ({
       ...ds,
-      tables: ds.tables.filter((t) => {
+      tables: ds.tables.filter((t: CatalogTable) => {
         if (!matchesFilter(t, stateFilter)) return false;
         if (!q) return true;
         return t.table_id.toLowerCase().includes(q) || t.fq_table.toLowerCase().includes(q);
       }),
     }));
-  }, [props.datasets, search, stateFilter]);
+  }, [dsStubs, search, stateFilter]);
 
-  const totalTables = props.datasets.reduce((n, d) => n + d.tables.length, 0);
   const filteredTables = filtered.reduce((n, d) => n + d.tables.length, 0);
   const allFilteredFqs = useMemo(() => filtered.flatMap((ds) => ds.tables.map((t) => t.fq_table)), [filtered]);
 
@@ -70,7 +110,7 @@ export default function CatalogHome(props: {
     });
   }, []);
 
-  const selectDataset = useCallback((ds: CatalogDataset) => {
+  const selectDataset = useCallback((ds: DatasetStub) => {
     setSelected((prev) => {
       const next = new Set(prev);
       const fqs = ds.tables.map((t) => t.fq_table);
@@ -102,7 +142,7 @@ export default function CatalogHome(props: {
   );
 
   const profileDataset = useCallback(
-    (ds: CatalogDataset, mode: BulkMode, force = false) => {
+    (ds: DatasetStub, mode: BulkMode, force = false) => {
       const tables = ds.tables.map((t) => t.fq_table);
       if (tables.length === 0) return;
       bulk.startBatch(tables, mode, force);
@@ -111,20 +151,28 @@ export default function CatalogHome(props: {
   );
 
   return (
-    <div style={{ padding: "32px 40px", maxWidth: 960 }}>
+    <div style={{ padding: "32px 40px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--wb-text)" }}>
-            Browsing project:{" "}
-            <span style={{ color: "var(--wb-primary)" }}>{props.config?.data_project}</span>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--wb-text)", display: "flex", alignItems: "center", gap: 8 }}>
+            {props.config?.data_project_name || "Data Catalog"}
+            <HelpIcon title="Data Catalog" content="Browse all BigQuery datasets in your project. Click a dataset to expand it, then profile tables to generate metadata. Use the sidebar to access Terminology, Cohort Builder, and the Data AMA Agent." />
+            {props.config?.data_project_name && (
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--wb-muted)", marginLeft: 8 }}>
+                ({props.config?.data_project})
+              </span>
+            )}
+            {!props.config?.data_project_name && (
+              <span style={{ color: "var(--wb-primary)", marginLeft: 8 }}>{props.config?.data_project}</span>
+            )}
           </h1>
           <p style={{ color: "var(--wb-muted)", margin: "8px 0 0", fontSize: 14 }}>
-            {props.loading
+            {loadingDatasets
               ? "Loading datasets…"
-              : `${totalTables} table(s) across ${props.datasets.length} dataset(s).`}
+              : `${totalDatasets} dataset(s)${totalTables > 0 ? `, ${totalTables} table(s) loaded` : ""}. Click a dataset to load its tables.`}
           </p>
         </div>
-        {!props.loading && totalTables > 0 && (
+        {!loadingDatasets && totalDatasets > 0 && (
           <div style={{ display: "flex", gap: 6 }}>
             <button
               onClick={selectAll}
@@ -161,6 +209,17 @@ export default function CatalogHome(props: {
         )}
       </div>
 
+      {showOnboarding && (
+        <Onboarding
+          show
+          totalTables={totalTables}
+          onDismiss={() => {
+            localStorage.setItem("dc_onboarding_dismissed", "true");
+            setOnboardingDismissed(true);
+          }}
+        />
+      )}
+
       <Card style={{ marginBottom: 24, marginTop: 16 }}>
         <FilterBar search={search} onSearch={setSearch} stateFilter={stateFilter} onStateFilter={setStateFilter} />
         {search || stateFilter !== "all" ? (
@@ -170,10 +229,42 @@ export default function CatalogHome(props: {
         ) : null}
       </Card>
 
-      {filtered.map((ds) =>
-        ds.tables.length === 0 ? null : (
+      {!loadingDatasets && totalDatasets > 0 && totalTables === 0 && dsStubs.every((d) => d.loaded) && (
+        <Card style={{ textAlign: "center", padding: 40, marginBottom: 24 }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: "var(--wb-text)", marginBottom: 8 }}>
+            No BigQuery tables found
+          </div>
+          <div style={{ fontSize: 14, color: "var(--wb-muted)", lineHeight: 1.6, maxWidth: 420, margin: "0 auto" }}>
+            Data Catalog v2 currently supports BigQuery tables only. This project doesn't have any BQ datasets, or you may not have access.
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <button
+              onClick={() => {/* handled by parent via settings */}}
+              style={{
+                background: "var(--wb-primary)",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                padding: "8px 20px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Open Settings
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {filtered.map((ds) => {
+        const isExpanded = expanded.has(ds.dataset_id);
+        return (
           <div key={ds.dataset_id} style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isExpanded ? 10 : 0, cursor: "pointer" }}
+              onClick={() => toggleExpand(ds.dataset_id)}
+            >
               <h2
                 style={{
                   fontSize: 14,
@@ -184,17 +275,19 @@ export default function CatalogHome(props: {
                   margin: 0,
                 }}
               >
+                <span style={{ marginRight: 8, fontSize: 12 }}>{isExpanded ? "▼" : "▶"}</span>
                 {ds.dataset_id}
                 <span style={{ fontWeight: 400, textTransform: "none", marginLeft: 8 }}>
-                  {ds.tables.length} {ds.tables.length === 1 ? "table" : "tables"}
+                  {ds.loaded ? `${ds.tables.length} ${ds.tables.length === 1 ? "table" : "tables"}` : ds.loading ? "loading..." : "click to load"}
                 </span>
               </h2>
-              <div style={{ display: "flex", gap: 6 }}>
+              {isExpanded && ds.loaded && (
+              <div style={{ display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={() => selectDataset(ds)}
                   style={{ background: "none", border: "1px solid var(--wb-border)", borderRadius: 4, padding: "3px 10px", fontSize: 11, cursor: "pointer" }}
                 >
-                  {ds.tables.every((t) => selected.has(t.fq_table)) ? "Deselect" : "Select all"}
+                  {ds.tables.every((t: CatalogTable) => selected.has(t.fq_table)) ? "Deselect" : "Select all"}
                 </button>
                 <button
                   onClick={() => profileDataset(ds, "both")}
@@ -214,8 +307,18 @@ export default function CatalogHome(props: {
                   Profile all
                 </button>
               </div>
+              )}
             </div>
 
+            {isExpanded && ds.loading && (
+              <div style={{ padding: 16, color: "var(--wb-muted)", fontSize: 13 }}>Loading tables...</div>
+            )}
+
+            {isExpanded && ds.loaded && ds.tables.length === 0 && (
+              <div style={{ padding: 16, color: "var(--wb-muted)", fontSize: 13 }}>No tables in this dataset.</div>
+            )}
+
+            {isExpanded && ds.loaded && ds.tables.length > 0 && (<>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                 <thead>
@@ -248,7 +351,7 @@ export default function CatalogHome(props: {
                   </tr>
                 </thead>
                 <tbody>
-                  {ds.tables.map((t) => {
+                  {ds.tables.slice(0, visibleCounts[ds.dataset_id] || PAGE_SIZE).map((t) => {
                     const to = `/table/${encodeURIComponent(t.project_id)}/${encodeURIComponent(t.dataset_id)}/${encodeURIComponent(t.table_id)}`;
                     return (
                       <tr
@@ -301,9 +404,34 @@ export default function CatalogHome(props: {
                 </tbody>
               </table>
             </div>
+            {ds.tables.length > (visibleCounts[ds.dataset_id] || PAGE_SIZE) && (
+              <button
+                onClick={() =>
+                  setVisibleCounts((prev) => ({
+                    ...prev,
+                    [ds.dataset_id]: (prev[ds.dataset_id] || PAGE_SIZE) + PAGE_SIZE,
+                  }))
+                }
+                style={{
+                  display: "block",
+                  margin: "8px auto",
+                  background: "none",
+                  border: "1px solid var(--wb-border)",
+                  borderRadius: 6,
+                  padding: "6px 20px",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  color: "var(--wb-primary)",
+                  fontWeight: 500,
+                }}
+              >
+                Show more ({ds.tables.length - (visibleCounts[ds.dataset_id] || PAGE_SIZE)} remaining)
+              </button>
+            )}
+            </>)}
           </div>
-        ),
-      )}
+        );
+      })}
 
       <BulkActionBar
         count={selected.size}
@@ -312,7 +440,7 @@ export default function CatalogHome(props: {
         disabled={bulk.loading}
         hasExistingProfiles={
           Array.from(selected).some((fq) => {
-            for (const ds of props.datasets) {
+            for (const ds of dsStubs) {
               const tbl = ds.tables.find((t: any) => t.fq_table === fq);
               if (tbl) return tbl.profiling?.technical === "available" || tbl.profiling?.semantic === "available";
             }

@@ -5,9 +5,12 @@ On-demand technical / semantic profiling with GCS persistence and in-memory job 
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from threading import Lock
 from typing import Any, Literal, Optional
+
+logger = logging.getLogger(__name__)
 
 from verily_profiler import (
     discover_tables,
@@ -198,7 +201,7 @@ async def run_semantic_profile_async(
                 pass
             sem, new_entries = profile_semantic(
                 tech_prof, model=model, project_id=billing_project, registry=registry,
-                neighbor_context=neighbor_ctx,
+                context_text=neighbor_ctx,
             )
             write_sem_profile(bucket, fq_table, sem, project_id=billing_project)
 
@@ -208,13 +211,13 @@ async def run_semantic_profile_async(
                 try:
                     write_registry(bucket, data_project, registry, billing_project_id=billing_project)
                 except Exception as re:
-                    print(f"  Registry update failed (non-blocking): {re}")
+                    logger.info(f"  Registry update failed (non-blocking): {re}")
 
             if registry is not None and len(registry.entries) >= 2:
                 try:
                     _auto_reconcile(registry, model, billing_project, data_project, bucket)
                 except Exception as re:
-                    print(f"  Auto-reconciliation failed (non-blocking): {re}")
+                    logger.info(f"  Auto-reconciliation failed (non-blocking): {re}")
 
             try:
                 regenerate_catalog_context(bucket, data_project, billing_project_id=billing_project)
@@ -224,7 +227,7 @@ async def run_semantic_profile_async(
                 except Exception:
                     pass
             except Exception as ce:
-                print(f"  Catalog context regen failed (non-blocking): {ce}")
+                logger.info(f"  Catalog context regen failed (non-blocking): {ce}")
 
         except Exception as e:
             job_state.finish(fq_table, "semantic", job_id, str(e))
@@ -242,13 +245,13 @@ def _auto_reconcile(
     bucket: str,
 ) -> None:
     """Run reconciliation after semantic profiling and apply if duplicates found."""
-    print(f"  Auto-reconciling registry ({len(registry.entries)} entries)...")
+    logger.info(f"  Auto-reconciling registry ({len(registry.entries)} entries)...")
     groups = reconcile(registry, model=model, project_id=billing_project)
     if not groups:
-        print("  No duplicates found — registry is clean.")
+        logger.info("  No duplicates found — registry is clean.")
         return
 
-    print(f"  Found {len(groups)} reconciliation groups, applying...")
+    logger.info(f"  Found {len(groups)} reconciliation groups, applying...")
     avail = scan_profile_availability(bucket, data_project, billing_project_id=billing_project)
     sem_profiles: dict[str, dict] = {}
     for fq, info in avail.items():
@@ -263,7 +266,7 @@ def _auto_reconcile(
     for fq, prof in updated_profs.items():
         write_sem_profile(bucket, fq, prof, project_id=billing_project)
 
-    print(f"  Reconciliation complete: unified {len(groups)} groups, updated {len(updated_profs)} profiles.")
+    logger.info(f"  Reconciliation complete: unified {len(groups)} groups, updated {len(updated_profs)} profiles.")
 
 
 def profile_status_from_gcs_and_jobs(

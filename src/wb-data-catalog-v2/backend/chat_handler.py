@@ -10,12 +10,18 @@ Uses a tiered context strategy for speed:
 from __future__ import annotations
 
 import asyncio
+import logging
 from threading import Lock
+
+logger = logging.getLogger(__name__)
 from typing import Any, Optional
 
 from verily_chat import ChatContext, ChatMessage, ChatSession, chat as metadata_chat
 from verily_profiler import read_tech_profile, read_sem_profile
 from verily_profiler.storage import read_catalog_context
+
+
+MAX_SESSIONS = 100
 
 
 class ChatSessionStore:
@@ -35,6 +41,9 @@ class ChatSessionStore:
                 sess.context = context
                 sess.mode = mode
                 return sess
+            if len(self._sessions) >= MAX_SESSIONS:
+                oldest_key = next(iter(self._sessions))
+                del self._sessions[oldest_key]
             sess = ChatSession(context=context, mode=mode)
             self._sessions[sess.session_id] = sess
             return sess
@@ -126,10 +135,41 @@ def _load_all_profiles(
                 if sem:
                     sem_profiles[fq] = sem
     except Exception as e:
-        print(f"Failed to load all profiles for agent mode: {e}")
+        logger.warning(f"Failed to load all profiles for agent mode: {e}")
 
     _all_profiles_cache[cache_key] = (tech_profiles, sem_profiles)
     return tech_profiles, sem_profiles
+
+
+def _schema_link(
+    question: str,
+    catalog_md: str,
+    billing_project: str,
+) -> list[str]:
+    """Use a fast LLM call to identify which tables are relevant to the question."""
+    from verily_profiler.llm import call_gemini, extract_json_from_response, detect_available_model
+
+    model = detect_available_model(billing_project)
+    if not model or not catalog_md:
+        return []
+
+    prompt = f"""Given the catalog of tables below, identify which tables are relevant to answer this question.
+Return ONLY a JSON array of fully-qualified table names (e.g. ["project.dataset.table1", "project.dataset.table2"]).
+Return at most 5 tables. If no tables are relevant, return [].
+
+QUESTION: {question}
+
+CATALOG:
+{catalog_md}"""
+
+    try:
+        raw = call_gemini(prompt, model=model, project_id=billing_project, temperature=0.0)
+        tables = extract_json_from_response(raw)
+        if isinstance(tables, list):
+            return [str(t) for t in tables[:5]]
+    except Exception as e:
+        logger.warning(f"Schema linking failed: {e}")
+    return []
 
 
 def invalidate_context_cache(data_project: str = "", bucket: str = ""):
@@ -151,15 +191,19 @@ def build_context(
     billing_project: str,
     bucket: str,
     mode: str = "metadata",
+    detail_level: str = "summary",
+    question: str = "",
 ) -> ChatContext:
     """
     Build ChatContext using tiered strategy:
-    - Tier 1: catalog .md injected as table_summaries text
-    - Tier 2: full profiles loaded only for the focused table
-    - Agent mode: load ALL available profiles so tools can access them
+    - summary: catalog .md only (fast, good for discovery)
+    - full: schema-linked — LLM identifies relevant tables, loads their full profiles
+    - Focused table always gets full profiles loaded
     """
     tech_profiles: dict[str, dict] = {}
     sem_profiles: dict[str, dict] = {}
+
+    catalog_md = _load_catalog_context_md(data_project, bucket, billing_project)
 
     if fq_table:
         tech, sem = _load_table_detail(fq_table, bucket, billing_project)
@@ -168,11 +212,21 @@ def build_context(
         if sem:
             sem_profiles[fq_table] = sem
 
-    # Agent mode needs all profiles loaded into the dicts so tools can access them
-    if mode == "agent" and not fq_table:
+    if detail_level == "full" and question and catalog_md:
+        linked_tables = _schema_link(question, catalog_md, billing_project)
+        if linked_tables:
+            logger.info(f"Schema linked {len(linked_tables)} tables: {linked_tables}")
+            for fq in linked_tables:
+                if fq not in tech_profiles:
+                    tech, sem = _load_table_detail(fq, bucket, billing_project)
+                    if tech:
+                        tech_profiles[fq] = tech
+                    if sem:
+                        sem_profiles[fq] = sem
+        else:
+            tech_profiles, sem_profiles = _load_all_profiles(bucket, data_project, billing_project)
+    elif mode == "agent" and not fq_table:
         tech_profiles, sem_profiles = _load_all_profiles(bucket, data_project, billing_project)
-
-    catalog_md = _load_catalog_context_md(data_project, bucket, billing_project)
 
     table_summaries: list[dict] = []
     if catalog_md:
@@ -197,13 +251,14 @@ async def handle_chat_message(
     billing_project: str,
     bucket: str,
     model: Optional[str],
+    detail_level: str = "summary",
 ) -> dict[str, Any]:
-    ctx = build_context(fq_table, data_project, billing_project, bucket, mode=mode)
+    ctx = build_context(fq_table, data_project, billing_project, bucket, mode=mode, detail_level=detail_level, question=message)
     session = chat_store.get_or_create(session_id, ctx, mode)
     session.add_message(ChatMessage(role="user", content=message, mode=mode))
 
-    metadata_model = model or "gemini-3-flash-preview"
-    agent_model = model or "gemini-2.5-flash"
+    metadata_model = model or "gemini-3.5-flash"
+    agent_model = model or "gemini-3.5-flash"
 
     if mode == "agent":
         reply = await _handle_agent(message, session, agent_model, billing_project)

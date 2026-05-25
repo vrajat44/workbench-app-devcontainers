@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { BulkMode, BulkStatusResponse } from "../types/bulk";
+import { useNotification } from "../components/Notifications";
 
 const POLL_INTERVAL = 2000;
 
 export function useBulkProfile(onComplete?: () => void) {
+  const { showNotification } = useNotification();
   const [batchId, setBatchId] = useState<string | null>(null);
   const [status, setStatus] = useState<BulkStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,6 +51,13 @@ export function useBulkProfile(onComplete?: () => void) {
                 stopPolling();
                 setLoading(false);
                 onCompleteRef.current?.();
+                const done = (s.technical?.done || 0) + (s.semantic?.done || 0);
+                const failed = (s.technical?.failed || 0) + (s.semantic?.failed || 0);
+                if (failed > 0) {
+                  showNotification(`Profiling finished with ${failed} error(s)`, "warning");
+                } else {
+                  showNotification(`Profiling complete: ${done} profile(s) generated`, "success");
+                }
               }
             }
           } catch {}

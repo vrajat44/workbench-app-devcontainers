@@ -14,14 +14,11 @@ from typing import Optional
 
 from verily_profiler.models import (
     STANDARD_SYSTEMS,
-    ConceptBinding,
-    CodeSystemBinding,
     PrimaryKeyInfo,
     SemanticColumnProfile,
     SemanticDomain,
     SemanticTableProfile,
     SemanticValidationResult,
-    StructuralLink,
     TechTableProfile,
     TermEntry,
     TerminologyBinding,
@@ -83,40 +80,7 @@ Return a single JSON object with these top-level fields:
 {_TAXONOMY_LIST}
    - "sub_domain": a free-text string providing more specificity
      (e.g. "Oncology Pathology Reports", "Blood Chemistry Panels")
-6. "entity_anchor": the column name that uniquely identifies the primary entity
-   in this table. For patient/subject-level tables, this is the patient/person/
-   subject ID column. For event-level tables (encounters, claims), this is the
-   event ID. For specimen/sample tables, this could be the specimen ID.
-   Use the technical stats to help: the entity anchor is typically a column with
-   high distinct_count relative to row_count and low null_percent.
-   Set to "" if no clear entity anchor exists (e.g. reference/lookup tables,
-   metadata tables, or single-column tables).
-7. "entity_type": what kind of entity each row represents. Common values:
-   "subject", "participant", "patient", "encounter", "observation", "claim",
-   "specimen", "sample", "provider", "organization", "device",
-   "medication_order", "adverse_event", "reference", "metadata".
-   Set to "" if unclear or not applicable.
-8. "cohort_dimensions": array of column names useful as cohort filtering criteria.
-   Include columns that represent:
-   - Demographics (age, gender, sex, race, ethnicity)
-   - Clinical categories (diagnosis flags, condition indicators, risk scores)
-   - Temporal boundaries (visit, visit_date, enrollment_date, service_date)
-   - Geographic/organizational (facility, site, region)
-   - Study/program (cohort, arm, enrollment_status)
-   - Categorical outcomes (score_flag, severity, status)
-   EXCLUDE from cohort_dimensions:
-   - Unique identifiers (subject IDs, surrogate keys) — too high cardinality
-   - Constants (columns with distinct_count=1) — no filtering value
-   - Continuous numeric columns with high distinct_count (e.g. study_day,
-     elapsed_days, age_in_days, lab result values, raw scores). Use this
-     heuristic: if a FLOAT64/INT64 column has distinct_count > 20, it is
-     likely continuous and should be EXCLUDED. Only include numeric columns
-     with very low cardinality (e.g. binary 0/1 flags, small enumerations).
-   - Free-text columns — not filterable
-   - Structural/offset columns (study_day, day_offset, sequence numbers,
-     ordinal positions)
-   Set to [] if no columns are suitable for cohort filtering.
-9. "columns": a JSON array where each element has:
+6. "columns": a JSON array where each element has:
    - "column_name": exact column name (must match input)
    - "definition": plain-language description (2-3 sentences)
    - "terminology_bindings": array of objects with "system", "code", "display"
@@ -144,46 +108,27 @@ Return a single JSON object with these top-level fields:
        e) If an EXISTING REGISTRY is provided below, REUSE entries from it
           when the concept matches. Use the exact same system + code.
 
-   - "concept_binding": object or null. Set this if the column ALWAYS represents
-     ONE specific concept — the column IS the concept.
-     Example: `phq9_total_score` always = PHQ-9 total score.
-     Format: {{"system": "http://loinc.org", "code": "44261-6",
-               "display": "PHQ-9 Total Score", "confidence": "high"}}
-     Set to null if the column does not represent a single fixed concept.
-
-   - "code_system_binding": object or null. Set this if the column CONTAINS
-     codes from a terminology — each row can be a different concept.
-     Example: `procedure_code` contains CPT codes, `diagnosis_code` contains
-     ICD-10 codes.
-     Format: {{"system": "http://www.ama-assn.org/go/cpt",
-               "display": "CPT Procedure Codes", "confidence": "high"}}
-     Set to null if the column does not contain terminology codes.
-
-     RULES: A column gets concept_binding OR code_system_binding, NOT both.
-     If neither applies, set both to null.
-
    - "sensitivity": one of "PHI", "PII", "UID", "" (empty if not sensitive)
-   - "join_paths": array of "TABLE_NAME.column_name" strings, or [].
-     If an EXISTING TABLES section is provided below, use the EXACT table and
-     column names from that section. Only suggest joins where the data types
-     and column semantics are compatible. Do NOT invent table names.
+   - "join_paths": array of "likely_table.likely_column" strings, or []
    - "confidence": "high", "medium", or "low"
    - "unit_of_measure": the measurement unit for this column if applicable
        (e.g. "mg/dL", "kg", "years", "USD", "count", "percentage").
        Set to "" (empty string) if the column does not represent a measurement.
        Do NOT flag missing units as an error.
-   - "measurement_method": how the value was captured. One of:
-       "self-reported" (questionnaires, surveys, patient-reported outcomes),
-       "lab-measured" (blood assays, lab panels, clinical lab results),
-       "device-collected" (sensors, wearables, medical devices),
-       "calculated" (derived scores, risk models, computed values),
-       "administrative" (billing codes, enrollment flags, system-generated).
-       Set to "" if not applicable (IDs, dates, free text, structural columns).
-   - "value_set_binding": array of allowed/meaningful values for categorical
-       columns. For columns in cohort_dimensions, list the valid categorical
-       values from the technical stats (top_values). Exclude null placeholders,
-       sentinel values (99999, N/A), and empty strings. Order by frequency.
-       Set to [] if not applicable or if the column is continuous/numeric.
+   - "measurement_method": how the data in this column was captured or derived.
+       Use EXACTLY ONE of these values:
+         "self-reported"       — patient/participant-reported data (surveys, questionnaires, medical history)
+         "clinician-reported"  — recorded by a clinician during a visit or assessment
+         "lab-measured"        — from a laboratory test or assay
+         "device-collected"    — from a wearable, sensor, or medical device
+         "derived"             — calculated or derived from other columns (flags, scores, aggregations)
+         "administrative"      — system-generated identifiers, timestamps, or operational data
+       Set to "" (empty string) if the capture method cannot be determined.
+       IMPORTANT: Look at column naming patterns for clues:
+         - "der_" or "derived_" prefix → "derived"
+         - "mh_" or "medical_history" prefix → "self-reported" (medical history is typically patient-reported)
+         - score columns computed from subscales → "derived"
+         - raw survey/questionnaire items → "self-reported"
 
 IMPORTANT: Fields that are not applicable should be set to their empty/default
 values (empty string, empty array). This is expected behavior, not an error.
@@ -207,9 +152,6 @@ Also assess table-level metadata:
 7. Is the primary_key identification reasonable given the stats?
 8. Is the granularity description accurate?
 9. Is the semantic_domain assignment appropriate?
-10. Is the entity_anchor the correct entity identifier column?
-11. Is the entity_type accurate for the table's content?
-12. Are cohort_dimensions appropriate (categorical/filterable, not IDs or constants)?
 
 Return a JSON object with:
 - "status": "pass", "warning", or "fail"
@@ -234,7 +176,6 @@ def profile_semantic(
     context_text: Optional[str] = None,
     run_judge: bool = False,
     registry: Optional[TerminologyRegistry] = None,
-    neighbor_context: Optional[str] = None,
 ) -> tuple[SemanticTableProfile, list[TermEntry]]:
     """
     Generate semantic profiles for all columns in a table.
@@ -247,9 +188,6 @@ def profile_semantic(
         run_judge: Whether to run the LLM-as-Judge validation pass.
         registry: Existing terminology registry for reuse. If None, no
                   registry context is injected.
-        neighbor_context: Pre-generated catalog context markdown listing
-                  other profiled tables. Injected so the LLM can suggest
-                  accurate join_paths referencing real table/column names.
 
     Returns:
         Tuple of (SemanticTableProfile, list of new TermEntry objects to
@@ -260,7 +198,7 @@ def profile_semantic(
         model_used=model,
     )
 
-    user_msg = _build_profiling_prompt(tech_profile, context_text, registry, neighbor_context)
+    user_msg = _build_profiling_prompt(tech_profile, context_text, registry)
 
     try:
         response = call_gemini(
@@ -291,18 +229,12 @@ def profile_semantic(
     sem_profile.granularity = table_meta.get("granularity", "")
     sem_profile.primary_key = _parse_primary_key(table_meta.get("primary_key"))
     sem_profile.semantic_domain = _parse_semantic_domain(table_meta.get("semantic_domain"))
-    sem_profile.entity_anchor = str(table_meta.get("entity_anchor", "")).strip()
-    sem_profile.entity_type = str(table_meta.get("entity_type", "")).strip().lower()
-    cohort_dims = table_meta.get("cohort_dimensions", [])
-    sem_profile.cohort_dimensions = [str(c) for c in cohort_dims] if isinstance(cohort_dims, list) else []
 
     tech_col_names = {cp.column_name for cp in tech_profile.columns}
     for cp in tech_profile.columns:
         llm_data = col_map.get(cp.column_name, {})
         sem_col = _build_semantic_column(cp.column_name, llm_data)
         sem_profile.columns.append(sem_col)
-
-    sem_profile.structural_links = _extract_structural_links(sem_profile)
 
     cross_issues: list[str] = []
     for name in col_map:
@@ -352,7 +284,6 @@ def _build_profiling_prompt(
     tech_profile: TechTableProfile,
     context_text: Optional[str],
     registry: Optional[TerminologyRegistry] = None,
-    neighbor_context: Optional[str] = None,
 ) -> str:
     lines = [
         f"Table: {tech_profile.table_name}",
@@ -382,12 +313,6 @@ def _build_profiling_prompt(
         lines.append("")
         lines.append(registry.format_for_prompt(max_entries=200))
 
-    if neighbor_context:
-        lines.append("")
-        lines.append("--- EXISTING TABLES IN THIS PROJECT ---")
-        lines.append("Use these to suggest accurate join_paths with real table and column names:")
-        lines.append(neighbor_context[:12000])
-
     if context_text:
         lines.append("")
         lines.append("Additional context (data dictionary / schema / protocol):")
@@ -409,9 +334,6 @@ def _parse_llm_output(raw, tech_profile):
             "granularity": raw.get("granularity", ""),
             "primary_key": raw.get("primary_key"),
             "semantic_domain": raw.get("semantic_domain"),
-            "entity_anchor": raw.get("entity_anchor", ""),
-            "entity_type": raw.get("entity_type", ""),
-            "cohort_dimensions": raw.get("cohort_dimensions", []),
         }
         items = raw["columns"] if isinstance(raw["columns"], list) else []
     elif isinstance(raw, list):
@@ -465,56 +387,19 @@ def _build_semantic_column(column_name, llm_data):
     if not isinstance(join_paths, list):
         join_paths = []
     unit_of_measure = str(llm_data.get("unit_of_measure", "")).strip()
-
-    concept_binding = _parse_concept_binding(llm_data.get("concept_binding"))
-    code_system_binding = _parse_code_system_binding(llm_data.get("code_system_binding"))
-
+    valid_methods = {"self-reported", "clinician-reported", "lab-measured", "device-collected", "derived", "administrative"}
     measurement_method = str(llm_data.get("measurement_method", "")).strip().lower()
-    if measurement_method not in ("self-reported", "lab-measured", "device-collected", "calculated", "administrative"):
+    if measurement_method not in valid_methods:
         measurement_method = ""
-
-    value_set_raw = llm_data.get("value_set_binding", [])
-    value_set_binding = [str(v) for v in value_set_raw] if isinstance(value_set_raw, list) else []
-
     return SemanticColumnProfile(
         column_name=column_name,
         definition=str(llm_data.get("definition", "")).strip(),
         terminology_bindings=bindings,
-        concept_binding=concept_binding,
-        code_system_binding=code_system_binding,
         sensitivity=sensitivity,
         join_paths=[str(jp) for jp in join_paths],
         confidence=confidence,
         unit_of_measure=unit_of_measure,
         measurement_method=measurement_method,
-        value_set_binding=value_set_binding,
-    )
-
-
-def _parse_concept_binding(raw) -> Optional[ConceptBinding]:
-    if not isinstance(raw, dict) or not raw.get("system") or not raw.get("code"):
-        return None
-    conf = str(raw.get("confidence", "medium")).strip().lower()
-    if conf not in ("high", "medium", "low"):
-        conf = "medium"
-    return ConceptBinding(
-        system=str(raw["system"]),
-        code=str(raw["code"]),
-        display=str(raw.get("display", "")),
-        confidence=conf,
-    )
-
-
-def _parse_code_system_binding(raw) -> Optional[CodeSystemBinding]:
-    if not isinstance(raw, dict) or not raw.get("system"):
-        return None
-    conf = str(raw.get("confidence", "medium")).strip().lower()
-    if conf not in ("high", "medium", "low"):
-        conf = "medium"
-    return CodeSystemBinding(
-        system=str(raw["system"]),
-        display=str(raw.get("display", "")),
-        confidence=conf,
     )
 
 
@@ -535,46 +420,6 @@ def _extract_term_entries(sem_profile: SemanticTableProfile) -> list[TermEntry]:
             )
             entries.append(entry)
     return entries
-
-
-# ── Structural link extraction ───────────────────────────────────────────────
-
-def _extract_structural_links(sem_profile: SemanticTableProfile) -> list[StructuralLink]:
-    """Build table-level structural_links from column-level join_paths."""
-    links: list[StructuralLink] = []
-    seen: set[tuple[str, str, str]] = set()
-    entity_anchor = sem_profile.entity_anchor
-
-    for sc in sem_profile.columns:
-        for jp in sc.join_paths:
-            parts = jp.split(".")
-            if len(parts) < 2:
-                continue
-            target_col = parts[-1]
-            target_table = ".".join(parts[:-1])
-
-            key = (sc.column_name, target_table, target_col)
-            if key in seen:
-                continue
-            seen.add(key)
-
-            if entity_anchor and sc.column_name in (entity_anchor,) or target_col.upper() in ("SUBJID", "USUBJID", "PTID", "PERSON_ID", "PARTICIPANT_ID", "PATIENT_ID"):
-                link_type = "entity_key"
-            elif sc.column_name.upper() in ("VISIT", "VISITNUM", "VISIT_DATE", "SERVICE_DATE"):
-                link_type = "shared_dimension"
-            else:
-                link_type = "foreign_key"
-
-            links.append(StructuralLink(
-                source_column=sc.column_name,
-                target_table=target_table,
-                target_column=target_col,
-                link_type=link_type,
-                cardinality="many_to_one" if link_type == "entity_key" else "many_to_many",
-                confidence=sc.confidence,
-            ))
-
-    return links
 
 
 # ── Applicability warnings ───────────────────────────────────────────────────

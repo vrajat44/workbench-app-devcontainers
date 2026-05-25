@@ -1,9 +1,27 @@
 export interface ApiConfig {
   billing_project: string;
   data_project: string;
+  data_project_name?: string;
   profile_bucket: string;
   gemini_model: string | null;
   configured: boolean;
+  default_billing_project?: string;
+}
+
+export interface WorkspaceInfo {
+  id: string;
+  name: string;
+  gcp_project: string;
+  role: string;
+}
+
+export interface WorkspaceDataset {
+  id: string;
+  project_id: string;
+  dataset_id: string;
+  num_tables: number | null;
+  type: string;
+  location: string;
 }
 
 export type ProfilingState = "none" | "running" | "available" | "failed";

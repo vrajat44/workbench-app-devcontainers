@@ -86,7 +86,7 @@ class TestReport:
 
 def load_profiles(bucket: str, project: str, billing_project: str, dataset_filter: Optional[str]):
     """Load all tech + semantic profiles from GCS."""
-    sys.path.insert(0, "../packages/verily-profiler/src")
+    sys.path.insert(0, "../backend")
     from verily_profiler.storage import (
         scan_profile_availability, read_tech_profile, read_sem_profile,
     )

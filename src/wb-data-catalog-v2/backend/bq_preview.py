@@ -12,7 +12,7 @@ from google.cloud import bigquery
 
 from verily_profiler.models import BQTableInfo
 
-MAX_PREVIEW_ROWS = 500
+MAX_PREVIEW_ROWS = 50
 MAX_EXPLORE_ROWS = 5000
 
 
@@ -44,7 +44,7 @@ def preview_table(
     sql = f"SELECT * FROM {fq} LIMIT {limit}"
 
     query_job = client.query(sql)
-    rows = list(query_job.result())
+    rows = list(query_job.result(timeout=60))
     schema_fields = list(query_job.schema or [])
 
     if schema_fields:

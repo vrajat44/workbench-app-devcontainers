@@ -140,144 +140,14 @@ def _make_tools(context: ChatContext, billing_project: str | None):
                 lines.append(f"  {desc}")
         return "\n".join(lines)
 
-    @tool
-    def find_joinable_tables(table_name: str) -> str:
-        """Find all tables that can be joined to the given table.
-        Returns structural links grouped by link type (entity_key, foreign_key, shared_dimension).
-        Use this when the user asks 'what can I join to X?' or needs cross-table queries.
-        """
-        all_fqs = set(list(context.tech_profiles.keys()) + list(context.sem_profiles.keys()))
-
-        match_fq = None
-        for fq in all_fqs:
-            if fq == table_name or fq.endswith(f".{table_name}"):
-                match_fq = fq
-                break
-        if not match_fq:
-            for fq in all_fqs:
-                if table_name.lower() in fq.lower():
-                    match_fq = fq
-                    break
-
-        if not match_fq:
-            return f"Table '{table_name}' not found. Available: {', '.join(sorted(all_fqs))}"
-
-        sem = context.sem_profiles.get(match_fq, {})
-        links = sem.get("structural_links", [])
-
-        reverse_links: list[dict] = []
-        for fq in all_fqs:
-            if fq == match_fq:
-                continue
-            other_sem = context.sem_profiles.get(fq, {})
-            for sl in other_sem.get("structural_links", []):
-                target = sl.get("target_table", "")
-                if match_fq.endswith(target) or target.endswith(match_fq.split(".")[-1]):
-                    reverse_links.append({
-                        "source_table": fq,
-                        "source_column": sl.get("source_column", ""),
-                        "target_column": sl.get("target_column", ""),
-                        "link_type": sl.get("link_type", ""),
-                        "cardinality": sl.get("cardinality", ""),
-                    })
-
-        if not links and not reverse_links:
-            return f"No structural links found for `{match_fq}`. Try profiling with neighbor context."
-
-        lines = [f"Joinable tables for `{match_fq}`:\n"]
-
-        by_type: dict[str, list[str]] = {}
-        for sl in links:
-            lt = sl.get("link_type", "unknown")
-            entry = f"  {sl.get('source_column','')} → {sl.get('target_table','')}.{sl.get('target_column','')} ({sl.get('cardinality','')})"
-            by_type.setdefault(lt, []).append(entry)
-
-        for rl in reverse_links:
-            lt = rl.get("link_type", "unknown")
-            entry = f"  {rl['target_column']} ← {rl['source_table']}.{rl['source_column']} ({rl.get('cardinality','')})"
-            by_type.setdefault(lt, []).append(entry)
-
-        for lt in ["entity_key", "foreign_key", "shared_dimension", "temporal"]:
-            if lt in by_type:
-                lines.append(f"**{lt}** ({len(by_type[lt])}):")
-                lines.extend(by_type[lt])
-                lines.append("")
-                del by_type[lt]
-        for lt, entries in by_type.items():
-            lines.append(f"**{lt}** ({len(entries)}):")
-            lines.extend(entries)
-            lines.append("")
-
-        return "\n".join(lines)
-
-    @tool
-    def find_concept_across_tables(concept: str) -> str:
-        """Find all columns across all tables that represent a given concept.
-        Search by concept code (e.g. 'LOINC:44261-6'), display name (e.g. 'PHQ-9'),
-        or column name pattern (e.g. 'phq9'). Use this when the user asks
-        'find all depression data' or 'where is PHQ-9 across datasets?'
-        """
-        concept_lower = concept.lower()
-        results: list[str] = []
-
-        all_fqs = sorted(set(list(context.tech_profiles.keys()) + list(context.sem_profiles.keys())))
-
-        for fq in all_fqs:
-            sem = context.sem_profiles.get(fq, {})
-            for col in sem.get("columns", []):
-                col_name = col.get("name", "")
-                matched = False
-                match_reason = ""
-
-                cb = col.get("concept_binding")
-                if cb and cb.get("code"):
-                    code_match = concept_lower in f"{cb.get('system','').split('/')[-1]}:{cb['code']}".lower()
-                    display_match = concept_lower in cb.get("display", "").lower()
-                    if code_match or display_match:
-                        matched = True
-                        sys_short = cb["system"].split("/")[-1]
-                        match_reason = f"Fixed Concept: {sys_short}:{cb['code']} — {cb.get('display', '')}"
-
-                csb = col.get("code_system_binding")
-                if not matched and csb and csb.get("system"):
-                    sys_match = concept_lower in csb.get("system", "").lower()
-                    display_match = concept_lower in csb.get("display", "").lower()
-                    if sys_match or display_match:
-                        matched = True
-                        sys_short = csb["system"].split("/")[-1]
-                        match_reason = f"Code System: {sys_short} — {csb.get('display', '')}"
-
-                if not matched:
-                    for tb in col.get("terminology_bindings", []):
-                        code_str = f"{tb.get('system','').split('/')[-1]}:{tb.get('code','')}".lower()
-                        if concept_lower in code_str or concept_lower in tb.get("display", "").lower():
-                            matched = True
-                            match_reason = f"Binding: {tb.get('system','').split('/')[-1]}:{tb.get('code','')} — {tb.get('display', '')}"
-                            break
-
-                if not matched and concept_lower in col_name.lower():
-                    matched = True
-                    match_reason = f"Column name match"
-
-                if matched:
-                    method = col.get("measurement_method", "")
-                    method_str = f" [Method: {method}]" if method else ""
-                    results.append(f"  `{fq}`.{col_name} — {match_reason}{method_str}")
-
-        if not results:
-            return f"No columns found matching concept '{concept}' across {len(all_fqs)} tables."
-
-        header = f"Found {len(results)} column(s) matching '{concept}':\n"
-        return header + "\n".join(results)
-
-    return [query_bigquery, get_table_schema, list_available_tables, find_joinable_tables, find_concept_across_tables]
+    return [query_bigquery, get_table_schema, list_available_tables]
 
 
 def create_chat_agent(
     context: ChatContext,
-    model: str = "gemini-2.5-flash",
+    model: str = "gemini-3.5-flash",
     project_id: str | None = None,
-    location: str = "global",
+    location: str = "us",
 ):
     """
     Create a LangGraph agent with BigQuery tools.

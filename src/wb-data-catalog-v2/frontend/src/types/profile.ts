@@ -75,6 +75,47 @@ export interface SemColumn {
   value_set_binding?: string[];
 }
 
+export interface ColumnMeta {
+  fq_column: string;
+  column?: string;
+  fq_table?: string;
+  definition?: string;
+  measurement_method?: string;
+}
+
+export interface TerminologyEntry {
+  system: string;
+  code: string;
+  display: string;
+  concept_key: string;
+  source_columns: string[];
+  columns_meta: ColumnMeta[];
+  tables_count: number;
+  columns_count: number;
+}
+
+export interface TerminologyResponse {
+  entries: TerminologyEntry[];
+  total: number;
+  updated_at: string;
+}
+
+export interface TerminologySlimEntry {
+  system: string;
+  code: string;
+  display: string;
+  concept_key: string;
+  source_columns: string[];
+  tables_count: number;
+  columns_count: number;
+}
+
+export interface TerminologySlimResponse {
+  entries: TerminologySlimEntry[];
+  total: number;
+  updated_at: string;
+}
+
 export interface SemProfile {
   table: string;
   profiled_at: string;

@@ -10,6 +10,10 @@ Manages concurrent profiling of multiple tables with:
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -37,7 +41,7 @@ from verily_profiler.llm import detect_available_model
 from verily_profiler.models import TechTableProfile, TechColumnProfile, ValidationResult, TerminologyRegistry
 
 TECH_CONCURRENCY = 6
-SEM_CONCURRENCY = 3  # gemini-2.5-flash has high quota; 3 concurrent works well.
+SEM_CONCURRENCY = 3  # 3 concurrent semantic jobs works well with Gemini quota.
 
 
 @dataclass
@@ -183,7 +187,7 @@ class BulkProfileManager:
                 try:
                     neighbor_ctx = read_catalog_context(bucket, data_project, billing_project_id=billing_project)
                     if neighbor_ctx:
-                        print(f"  Bulk: loaded neighbor context ({len(neighbor_ctx)} chars)")
+                        logger.info(f"  Bulk: loaded neighbor context ({len(neighbor_ctx)} chars)")
                 except Exception:
                     pass
 
@@ -198,7 +202,7 @@ class BulkProfileManager:
                 try:
                     write_registry(bucket, data_project, registry, billing_project_id=billing_project)
                 except Exception as e:
-                    print(f"  Bulk: registry save failed: {e}")
+                    logger.info(f"  Bulk: registry save failed: {e}")
 
             try:
                 regenerate_catalog_context(bucket, data_project, billing_project_id=billing_project)
@@ -208,18 +212,18 @@ class BulkProfileManager:
                 except Exception:
                     pass
             except Exception as e:
-                print(f"  Bulk: catalog context regen failed: {e}")
+                logger.info(f"  Bulk: catalog context regen failed: {e}")
 
             if batch.mode in ("semantic", "both"):
                 self._run_second_pass(batch, bucket, billing_project, data_project, gemini_model, registry)
 
         except Exception as e:
-            print(f"  Bulk batch {batch.batch_id} crashed: {e}")
+            logger.info(f"  Bulk batch {batch.batch_id} crashed: {e}")
         finally:
             batch.finished_at = datetime.now(timezone.utc).isoformat()
+            _invalidate_catalog_cache()
             any_failed = any(t.tech_status == "failed" or t.sem_status == "failed" for t in batch.tables)
             batch.status = "completed" if not any_failed else "completed_with_errors"
-            _invalidate_catalog_cache()
 
     def _run_technical_batch(self, batch, bucket, billing_project, data_project, profile_index, force=False):
         def _do_tech(job: TableJobStatus):
@@ -242,7 +246,10 @@ class BulkProfileManager:
         with ThreadPoolExecutor(max_workers=TECH_CONCURRENCY) as ex:
             futures = {ex.submit(_do_tech, t): t for t in batch.tables}
             for f in as_completed(futures):
-                f.result()
+                try:
+                    f.result()
+                except Exception:
+                    pass
 
     def _run_semantic_batch(self, batch, bucket, billing_project, data_project, profile_index, model, registry, neighbor_ctx=None, force=False):
         def _do_sem(job: TableJobStatus):
@@ -262,7 +269,7 @@ class BulkProfileManager:
                 tech_prof = _dict_to_tech_profile(tech_json)
                 sem, new_entries = profile_semantic(
                     tech_prof, model=model, project_id=billing_project,
-                    registry=registry, neighbor_context=neighbor_ctx,
+                    registry=registry, context_text=neighbor_ctx,
                 )
                 write_sem_profile(bucket, job.fq_table, sem, project_id=billing_project)
                 if new_entries and registry is not None:
@@ -278,7 +285,10 @@ class BulkProfileManager:
         with ThreadPoolExecutor(max_workers=SEM_CONCURRENCY) as ex:
             futures = {ex.submit(_do_sem, t): t for t in batch.tables}
             for f in as_completed(futures):
-                f.result()
+                try:
+                    f.result()
+                except Exception:
+                    pass
 
     def _run_pipeline_batch(self, batch, bucket, billing_project, data_project, profile_index, model, registry, neighbor_ctx=None, force=False):
         """Tech then semantic per table, pipelined: semantic starts as soon as its tech is done."""
@@ -316,7 +326,7 @@ class BulkProfileManager:
                     tech_prof = _dict_to_tech_profile(tech_json)
                     sem, new_entries = profile_semantic(
                         tech_prof, model=model, project_id=billing_project,
-                        registry=registry, neighbor_context=neighbor_ctx,
+                        registry=registry, context_text=neighbor_ctx,
                     )
                     write_sem_profile(bucket, job.fq_table, sem, project_id=billing_project)
                     if new_entries and registry is not None:
@@ -357,7 +367,10 @@ class BulkProfileManager:
         with ThreadPoolExecutor(max_workers=TECH_CONCURRENCY) as ex:
             futures = {ex.submit(_do_tech, t): t for t in batch.tables}
             for f in as_completed(futures):
-                f.result()
+                try:
+                    f.result()
+                except Exception:
+                    pass
 
         sem_done.set()
         for st in sem_threads:
@@ -369,7 +382,7 @@ class BulkProfileManager:
         try:
             updated_ctx = read_catalog_context(bucket, data_project, billing_project_id=billing_project)
             if not updated_ctx:
-                print("  Second pass: no catalog context available, skipping")
+                logger.info("  Second pass: no catalog context available, skipping")
                 return
         except Exception:
             return
@@ -393,10 +406,10 @@ class BulkProfileManager:
                 continue
 
         if not tables_needing_repass:
-            print("  Second pass: all entity_anchor columns already have join_paths, skipping")
+            logger.info("  Second pass: all entity_anchor columns already have join_paths, skipping")
             return
 
-        print(f"  Second pass: re-profiling {len(tables_needing_repass)} tables with updated context")
+        logger.info(f"  Second pass: re-profiling {len(tables_needing_repass)} tables with updated context")
         for job in tables_needing_repass:
             try:
                 p, d, t = parse_fq_table(job.fq_table)
@@ -406,16 +419,16 @@ class BulkProfileManager:
                 tech_prof = _dict_to_tech_profile(tech_json)
                 sem, new_entries = profile_semantic(
                     tech_prof, model=model, project_id=billing_project,
-                    registry=registry, neighbor_context=updated_ctx,
+                    registry=registry, context_text=updated_ctx,
                 )
                 write_sem_profile(bucket, job.fq_table, sem, project_id=billing_project)
                 if new_entries and registry is not None:
                     with self._lock:
                         for entry in new_entries:
                             registry.upsert(entry)
-                print(f"    Re-profiled {job.fq_table}")
+                logger.info(f"    Re-profiled {job.fq_table}")
             except Exception as e:
-                print(f"    Second pass failed for {job.fq_table}: {e}")
+                logger.info(f"    Second pass failed for {job.fq_table}: {e}")
 
         try:
             regenerate_catalog_context(bucket, data_project, billing_project_id=billing_project)
@@ -427,12 +440,16 @@ bulk_manager = BulkProfileManager()
 
 
 def _invalidate_catalog_cache():
-    """Clear the catalog response cache so next request gets fresh data."""
+    """Clear all profiling-related caches so next request gets fresh data."""
     try:
-        from main import _catalog_cache
-        _catalog_cache.clear()
+        from main import _invalidate_profiling_caches
+        _invalidate_profiling_caches()
     except Exception:
-        pass
+        try:
+            from main import _catalog_cache
+            _catalog_cache.clear()
+        except Exception:
+            pass
 
 
 def _load_table_info(fq_table: str, billing_project: str, data_project: str) -> BQTableInfo:

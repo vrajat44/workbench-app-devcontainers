@@ -1,34 +1,26 @@
-import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import type { CatalogDataset, CatalogTable } from "../types/catalog";
-import { SectionLabel } from "./rds";
 
-function profilingDot(t: CatalogTable) {
-  const tech = t.profiling.technical;
-  const sem = t.profiling.semantic;
-  if (tech === "running" || sem === "running") return "#f0c040";
-  if (tech === "available" && sem === "available") return "var(--wb-success)";
-  if (tech === "available") return "var(--wb-accent)";
-  return "transparent";
-}
+const navLinkBase: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "10px 14px",
+  borderRadius: "var(--wb-radius)",
+  fontSize: 14,
+  fontWeight: 500,
+  color: "var(--wb-sidebar-text)",
+  textDecoration: "none",
+  transition: "background 0.12s",
+};
 
-function NavItem(props: { table: CatalogTable; active: boolean }) {
-  const t = props.table;
-  const to = `/table/${encodeURIComponent(t.project_id)}/${encodeURIComponent(t.dataset_id)}/${encodeURIComponent(t.table_id)}`;
+function NavLink(props: { to: string; label: string; active: boolean; onClick?: () => void }) {
   return (
     <Link
-      to={to}
+      to={props.to}
+      onClick={props.onClick}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "7px 20px 7px 32px",
-        fontSize: 14,
-        color: "var(--wb-sidebar-text)",
-        textDecoration: "none",
+        ...navLinkBase,
         background: props.active ? "var(--wb-sidebar-active)" : "transparent",
-        borderRadius: 0,
-        transition: "background 0.12s",
       }}
       onMouseEnter={(e) => {
         if (!props.active) e.currentTarget.style.background = "var(--wb-sidebar-hover)";
@@ -37,73 +29,20 @@ function NavItem(props: { table: CatalogTable; active: boolean }) {
         if (!props.active) e.currentTarget.style.background = "transparent";
       }}
     >
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: "50%",
-          background: profilingDot(t),
-          border: profilingDot(t) === "transparent" ? "1.5px solid var(--wb-sidebar-muted)" : "none",
-          flexShrink: 0,
-        }}
-      />
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-        {t.business_name || t.table_id}
-      </span>
+      {props.label}
     </Link>
-  );
-}
-
-function DatasetSection(props: { dataset: CatalogDataset; activeTable: string }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          width: "100%",
-          padding: "8px 20px",
-          border: "none",
-          background: "transparent",
-          color: "var(--wb-sidebar-text)",
-          cursor: "pointer",
-          fontSize: 14,
-          fontWeight: 600,
-          fontFamily: "var(--wb-font)",
-          textAlign: "left",
-        }}
-      >
-        <span style={{ fontSize: 10, width: 14 }}>{open ? "▾" : "▸"}</span>
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {props.dataset.dataset_id}
-        </span>
-        <span style={{ fontSize: 12, color: "var(--wb-sidebar-muted)", fontWeight: 400 }}>
-          {props.dataset.tables.length} {props.dataset.tables.length === 1 ? "table" : "tables"}
-        </span>
-      </button>
-      {open
-        ? props.dataset.tables.map((t) => (
-            <NavItem key={t.fq_table} table={t} active={props.activeTable === t.fq_table} />
-          ))
-        : null}
-    </div>
   );
 }
 
 export function Sidebar(props: {
   projectId: string;
-  datasets: CatalogDataset[];
-  loading: boolean;
-  onSettingsClick: () => void;
+  projectName?: string;
   onRefresh: () => void;
+  onNavigate?: () => void;
+  onHelpClick?: () => void;
 }) {
   const location = useLocation();
-  const parts = location.pathname.split("/");
-  const activeTable = parts.length >= 5 ? `${decodeURIComponent(parts[2])}.${decodeURIComponent(parts[3])}.${decodeURIComponent(parts[4])}` : "";
+  const path = location.pathname;
 
   return (
     <nav
@@ -135,7 +74,7 @@ export function Sidebar(props: {
       </div>
 
       {/* Project badge */}
-      <div style={{ padding: "0 20px 8px" }}>
+      <div style={{ padding: "0 20px 12px" }}>
         {props.projectId ? (
           <div
             style={{
@@ -149,45 +88,26 @@ export function Sidebar(props: {
               justifyContent: "space-between",
             }}
           >
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {props.projectId}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+              {props.projectName ? (
+                <span>
+                  <span style={{ fontWeight: 600 }}>{props.projectName}</span>
+                  <br />
+                  <span style={{ fontSize: 11, color: "var(--wb-sidebar-muted)" }}>{props.projectId}</span>
+                </span>
+              ) : props.projectId}
             </span>
-            <button
-              type="button"
-              onClick={props.onSettingsClick}
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--wb-sidebar-muted)",
-                cursor: "pointer",
-                fontSize: 14,
-                padding: 2,
-                lineHeight: 1,
-              }}
-              title="Settings"
-            >
-              ⚙
-            </button>
           </div>
         ) : null}
       </div>
 
-      {/* Navigation tree */}
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 16 }}>
-        {props.loading ? (
-          <div style={{ padding: "20px", color: "var(--wb-sidebar-muted)", fontSize: 13 }}>Loading datasets…</div>
-        ) : props.datasets.length === 0 ? (
-          <div style={{ padding: "20px", color: "var(--wb-sidebar-muted)", fontSize: 13 }}>
-            No datasets found.
-          </div>
-        ) : (
-          props.datasets.map((ds) => (
-            <div key={ds.dataset_id}>
-              <SectionLabel>{ds.dataset_id}</SectionLabel>
-              <DatasetSection dataset={ds} activeTable={activeTable} />
-            </div>
-          ))
-        )}
+      {/* Global nav */}
+      <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+        <NavLink to="/" label="Data Catalog" active={path === "/" || path.startsWith("/table/")} onClick={props.onNavigate} />
+        <NavLink to="/terminology" label="Terminology" active={path === "/terminology"} onClick={props.onNavigate} />
+        <NavLink to="/cohorts" label="Cohort Builder" active={path === "/cohorts"} onClick={props.onNavigate} />
+        <NavLink to="/chat" label="Data AMA Agent" active={path === "/chat"} onClick={props.onNavigate} />
+        <NavLink to="/settings" label="Settings" active={path === "/settings"} onClick={props.onNavigate} />
       </div>
 
       {/* Bottom toolbar */}
@@ -214,25 +134,28 @@ export function Sidebar(props: {
             fontFamily: "var(--wb-font)",
           }}
         >
-          ↻ Refresh
+          Refresh
         </button>
-        <button
-          type="button"
-          onClick={props.onSettingsClick}
-          style={{
-            flex: 1,
-            padding: "6px 0",
-            background: "var(--wb-sidebar-hover)",
-            border: "none",
-            borderRadius: "var(--wb-radius)",
-            color: "var(--wb-sidebar-text)",
-            cursor: "pointer",
-            fontSize: 13,
-            fontFamily: "var(--wb-font)",
-          }}
-        >
-          ⚙ Settings
-        </button>
+        {props.onHelpClick && (
+          <button
+            type="button"
+            onClick={props.onHelpClick}
+            style={{
+              padding: "6px 0",
+              background: "var(--wb-sidebar-hover)",
+              border: "none",
+              borderRadius: "var(--wb-radius)",
+              color: "var(--wb-sidebar-text)",
+              cursor: "pointer",
+              fontSize: 13,
+              fontFamily: "var(--wb-font)",
+              width: 36,
+            }}
+            title="Help"
+          >
+            ?
+          </button>
+        )}
       </div>
     </nav>
   );

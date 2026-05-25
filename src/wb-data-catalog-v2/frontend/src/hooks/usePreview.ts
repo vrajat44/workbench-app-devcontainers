@@ -15,15 +15,26 @@ export function usePreview(project: string, dataset: string, table: string) {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/projects/${encodeURIComponent(project)}/datasets/${encodeURIComponent(dataset)}/tables/${encodeURIComponent(table)}/preview`)
+    setErr(null);
+    fetch(
+      `/api/projects/${encodeURIComponent(project)}/datasets/${encodeURIComponent(dataset)}/tables/${encodeURIComponent(table)}/preview`,
+      { signal: controller.signal },
+    )
       .then(async (r) => {
-        if (!r.ok) throw new Error(await r.text());
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({ detail: r.statusText }));
+          throw new Error(body.detail || `Preview failed: ${r.status}`);
+        }
         return r.json();
       })
       .then(setData)
-      .catch((e) => setErr(String(e)))
+      .catch((e) => {
+        if (e.name !== "AbortError") setErr(String(e));
+      })
       .finally(() => setLoading(false));
+    return () => controller.abort();
   }, [project, dataset, table]);
 
   return { data, loading, err };

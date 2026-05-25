@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Input, Select, Stack } from "./rds";
 
 export function FilterBar(props: {
@@ -6,10 +7,21 @@ export function FilterBar(props: {
   stateFilter: "all" | "none" | "tech" | "full";
   onStateFilter: (v: "all" | "none" | "tech" | "full") => void;
 }) {
+  const [local, setLocal] = useState(props.search);
+
+  useEffect(() => {
+    const timer = setTimeout(() => props.onSearch(local), 300);
+    return () => clearTimeout(timer);
+  }, [local]);
+
+  useEffect(() => {
+    setLocal(props.search);
+  }, [props.search]);
+
   return (
     <Stack gap={8}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-        <Input placeholder="Search tables…" value={props.search} onChange={props.onSearch} />
+        <Input placeholder="Search tables…" value={local} onChange={setLocal} />
         <Select
           value={props.stateFilter}
           onChange={(v) => props.onStateFilter(v as "all" | "none" | "tech" | "full")}

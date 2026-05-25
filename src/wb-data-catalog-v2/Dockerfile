@@ -12,13 +12,6 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install local packages first (they are dependencies for the backend)
-COPY packages/verily-profiler /tmp/verily-profiler
-RUN pip install --no-cache-dir /tmp/verily-profiler && rm -rf /tmp/verily-profiler
-
-COPY packages/verily-chat /tmp/verily-chat
-RUN pip install --no-cache-dir "/tmp/verily-chat[agent]" && rm -rf /tmp/verily-chat
-
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -28,5 +21,5 @@ RUN chmod +x /app/start.sh
 COPY --from=frontend-build /build/dist /app/static
 ENV FRONTEND_DIST=/app/static
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD curl -f http://localhost:8080/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s CMD curl -f http://localhost:8080/api/health || exit 1
 CMD ["./start.sh"]

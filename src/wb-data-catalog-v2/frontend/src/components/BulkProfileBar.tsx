@@ -153,11 +153,9 @@ export function BulkProgressDrawer(props: {
           <button onClick={() => setExpanded(e => !e)} style={{ background: "none", border: "1px solid #dde", borderRadius: 4, padding: "2px 10px", fontSize: 11, cursor: "pointer" }}>
             {expanded ? "Collapse" : "Details"}
           </button>
-          {!isRunning && (
-            <button onClick={props.onDismiss} style={{ background: "none", border: "1px solid #dde", borderRadius: 4, padding: "2px 10px", fontSize: 11, cursor: "pointer" }}>
-              Dismiss
-            </button>
-          )}
+          <button onClick={props.onDismiss} style={{ background: "none", border: "1px solid #dde", borderRadius: 4, padding: "2px 10px", fontSize: 11, cursor: "pointer" }}>
+            Dismiss
+          </button>
         </div>
       </div>
 

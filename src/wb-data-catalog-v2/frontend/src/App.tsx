@@ -1,32 +1,47 @@
-import { Navigate, Route, Routes } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { HelpPanel } from "./components/HelpSystem";
+import { LoadingSplash } from "./components/LoadingSplash";
+import { NotificationProvider } from "./components/Notifications";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
-import ChatPanel, { ChatToggleButton } from "./components/ChatPanel";
-import { useCatalog, useConfig } from "./hooks/useDatasets";
+import { useConfig } from "./hooks/useDatasets";
+import { useProgressiveCatalog } from "./hooks/useProgressiveCatalog";
 import CatalogHome from "./pages/CatalogPage";
+import ChatPage from "./pages/ChatPage";
+import CohortsPage from "./pages/CohortsPage";
+import SettingsPage from "./pages/SettingsPage";
 import TablePage from "./pages/TablePage";
+import TerminologyPage from "./pages/TerminologyPage";
 
 export default function App() {
   const { config, save: saveConfig, reload: reloadConfig } = useConfig();
   const [refreshKey, setRefreshKey] = useState(0);
-  const [showSettings, setShowSettings] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const location = useLocation();
 
   const configured = config?.configured ?? false;
   const dataProject = config?.data_project ?? "";
 
-  const { data, loading } = useCatalog(
+  const catalog = useProgressiveCatalog(
     configured ? dataProject : "",
     refreshKey,
   );
-
-  const datasets = useMemo(() => data?.datasets ?? [], [data]);
 
   const handleRefresh = () => {
     reloadConfig();
     setRefreshKey((k) => k + 1);
   };
+
+  const isInitialLoad = catalog.loadingDatasets && catalog.datasets.length === 0;
+
+  const helpPage = location.pathname.startsWith("/table/") ? "table"
+    : location.pathname === "/terminology" ? "terminology"
+    : location.pathname === "/cohorts" ? "cohorts"
+    : location.pathname === "/chat" ? "chat"
+    : location.pathname === "/settings" ? "catalog"
+    : "catalog";
 
   if (!configured) {
     return (
@@ -47,54 +62,83 @@ export default function App() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar
-        projectId={dataProject}
-        datasets={datasets}
-        loading={loading}
-        onSettingsClick={() => setShowSettings((s) => !s)}
-        onRefresh={handleRefresh}
-      />
+    <NotificationProvider>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        {/* Feedback banner */}
+        <div style={{
+          background: "#1a5c5e",
+          color: "#fff",
+          fontSize: 13,
+          fontWeight: 500,
+          textAlign: "center",
+          padding: "6px 16px",
+          flexShrink: 0,
+        }}>
+          This is an early preview.{" "}
+          <a
+            href="https://forms.gle/6ttFsVRzUR1jse4C6"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#a5d6a7", fontWeight: 700, textDecoration: "underline" }}
+          >
+            Share feedback or report bugs
+          </a>
+        </div>
 
-      <main
-        style={{
-          flex: 1,
-          overflow: "auto",
-          height: "100vh",
-        }}
-      >
-        {showSettings ? (
-          <div style={{ padding: 32, maxWidth: 640 }}>
-            <SettingsPanel
-              config={config}
-              onSave={saveConfig}
-              onSaved={() => {
-                handleRefresh();
-                setShowSettings(false);
-              }}
-            />
-          </div>
-        ) : (
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <CatalogHome
-                  config={config}
-                  datasets={datasets}
-                  loading={loading}
-                  onRefresh={handleRefresh}
-                />
-              }
-            />
-            <Route path="/table/:project/:dataset/:table" element={<TablePage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        )}
-      </main>
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <LoadingSplash
+          visible={isInitialLoad}
+          projectName={config?.data_project_name || dataProject}
+          status="Loading datasets..."
+        />
 
-      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
-      {!chatOpen && <ChatToggleButton onClick={() => setChatOpen(true)} />}
-    </div>
+        <Sidebar
+          projectId={dataProject}
+          projectName={config?.data_project_name || ""}
+          onRefresh={handleRefresh}
+          onHelpClick={() => setHelpOpen(true)}
+        />
+
+        <HelpPanel page={helpPage} open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+        <main
+          style={{
+            flex: 1,
+            overflow: "auto",
+          }}
+        >
+          <ErrorBoundary>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <CatalogHome
+                    config={config}
+                    catalog={catalog}
+                    onRefresh={handleRefresh}
+                  />
+                }
+              />
+              <Route path="/table/:project/:dataset/:table" element={<TablePage />} />
+              <Route path="/terminology" element={<TerminologyPage />} />
+              <Route path="/cohorts" element={<CohortsPage />} />
+              <Route path="/chat" element={<ChatPage />} />
+              <Route
+                path="/settings"
+                element={
+                  <SettingsPage
+                    config={config}
+                    onSave={saveConfig}
+                    onSaved={handleRefresh}
+                  />
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ErrorBoundary>
+        </main>
+        </div>
+      </div>
+    </NotificationProvider>
   );
 }

@@ -11,7 +11,7 @@ export function useChat() {
   const [error, setError] = useState<string | null>(null);
 
   const sendMessage = useCallback(
-    async (text: string, fqTable?: string | null) => {
+    async (text: string, fqTable?: string | null, detailLevel: "summary" | "full" = "summary") => {
       if (!text.trim()) return;
       setError(null);
 
@@ -28,6 +28,7 @@ export function useChat() {
         const body: Record<string, unknown> = {
           message: text,
           mode,
+          detail_level: detailLevel,
         };
         if (fqTable) body.fq_table = fqTable;
         if (sessionId) body.session_id = sessionId;

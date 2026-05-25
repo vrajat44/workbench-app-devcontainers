@@ -199,66 +199,19 @@ class SemanticDomain:
 
 
 @dataclass
-class ConceptBinding:
-    """Fixed concept binding — the column IS this concept (e.g., phq9_total_score → LOINC 44261-6)."""
-    system: str = ""
-    code: str = ""
-    display: str = ""
-    confidence: str = "medium"
-
-    def to_json_dict(self) -> dict:
-        return {"system": self.system, "code": self.code, "display": self.display, "confidence": self.confidence}
-
-
-@dataclass
-class CodeSystemBinding:
-    """Code system binding — the column CONTAINS codes from this system (e.g., procedure_code → CPT)."""
-    system: str = ""
-    display: str = ""
-    confidence: str = "medium"
-
-    def to_json_dict(self) -> dict:
-        return {"system": self.system, "display": self.display, "confidence": self.confidence}
-
-
-@dataclass
-class StructuralLink:
-    """A typed join relationship between two tables."""
-    source_column: str = ""
-    target_table: str = ""
-    target_column: str = ""
-    link_type: str = ""       # entity_key, foreign_key, shared_dimension, temporal
-    cardinality: str = ""     # one_to_one, one_to_many, many_to_one, many_to_many
-    confidence: str = "medium"
-
-    def to_json_dict(self) -> dict:
-        return {
-            "source_column": self.source_column,
-            "target_table": self.target_table,
-            "target_column": self.target_column,
-            "link_type": self.link_type,
-            "cardinality": self.cardinality,
-            "confidence": self.confidence,
-        }
-
-
-@dataclass
 class SemanticColumnProfile:
     """Semantic profiling output for a single column."""
     column_name: str
     definition: str = ""
     terminology_bindings: list[TerminologyBinding] = field(default_factory=list)
-    concept_binding: Optional[ConceptBinding] = None
-    code_system_binding: Optional[CodeSystemBinding] = None
     sensitivity: str = ""
     join_paths: list[str] = field(default_factory=list)
     confidence: str = "medium"
     unit_of_measure: str = ""
     measurement_method: str = ""
-    value_set_binding: list[str] = field(default_factory=list)
 
     def to_json_dict(self) -> dict:
-        d: dict = {
+        return {
             "name": self.column_name,
             "definition": self.definition,
             "terminology_bindings": [tb.to_json_dict() for tb in self.terminology_bindings],
@@ -267,13 +220,7 @@ class SemanticColumnProfile:
             "confidence": self.confidence,
             "unit_of_measure": self.unit_of_measure,
             "measurement_method": self.measurement_method,
-            "value_set_binding": self.value_set_binding,
         }
-        if self.concept_binding:
-            d["concept_binding"] = self.concept_binding.to_json_dict()
-        if self.code_system_binding:
-            d["code_system_binding"] = self.code_system_binding.to_json_dict()
-        return d
 
     def to_review_row(self) -> dict:
         bindings_str = "; ".join(
@@ -287,6 +234,7 @@ class SemanticColumnProfile:
             "Join Paths": ", ".join(self.join_paths) if self.join_paths else "",
             "Confidence": self.confidence,
             "Unit": self.unit_of_measure,
+            "Method": self.measurement_method,
         }
 
 
@@ -309,10 +257,6 @@ class SemanticTableProfile:
     primary_key: PrimaryKeyInfo = field(default_factory=PrimaryKeyInfo)
     granularity: str = ""
     semantic_domain: SemanticDomain = field(default_factory=SemanticDomain)
-    entity_anchor: str = ""
-    entity_type: str = ""
-    cohort_dimensions: list[str] = field(default_factory=list)
-    structural_links: list[StructuralLink] = field(default_factory=list)
     columns: list[SemanticColumnProfile] = field(default_factory=list)
     validation: SemanticValidationResult = field(default_factory=SemanticValidationResult)
 
@@ -330,10 +274,6 @@ class SemanticTableProfile:
             "primary_key": self.primary_key.to_json_dict(),
             "granularity": self.granularity,
             "semantic_domain": self.semantic_domain.to_json_dict(),
-            "entity_anchor": self.entity_anchor,
-            "entity_type": self.entity_type,
-            "cohort_dimensions": self.cohort_dimensions,
-            "structural_links": [sl.to_json_dict() for sl in self.structural_links],
             "validation": asdict(self.validation),
             "columns": [c.to_json_dict() for c in self.columns],
         }

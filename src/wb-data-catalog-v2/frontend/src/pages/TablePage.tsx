@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { DataPreview } from "../components/DataPreview";
 import { KeyInsightsPanel, InteractiveExplorerPanel } from "../components/ExplorePanel";
 import { ProfilingActions } from "../components/ProfilingActions";
 import { SemProfileView } from "../components/SemProfile";
 import { TechProfileView } from "../components/TechProfile";
+import { HelpIcon } from "../components/HelpSystem";
 import { Badge, Card, Tabs } from "../components/rds";
 import { useChartSuggestions } from "../hooks/useCharts";
 import { usePreview } from "../hooks/usePreview";
@@ -13,15 +14,25 @@ import { useProfileStatus, useSemProfile, useTechProfile } from "../hooks/usePro
 export default function TablePage() {
   const { project = "", dataset = "", table = "" } = useParams();
   const [tab, setTab] = useState(0);
+  const visitedTabs = useRef(new Set<number>([0]));
 
-  const { data: preview, loading: prevLoading, err: prevErr } = usePreview(project, dataset, table);
+  const handleTabChange = (t: number) => {
+    visitedTabs.current.add(t);
+    setTab(t);
+  };
+
+  const visited = (t: number) => visitedTabs.current.has(t);
+
   const { status, reload } = useProfileStatus(project, dataset, table);
   const techAvailable = status?.technical === "available";
   const semAvailable = status?.semantic === "available";
 
+  const { data: preview, loading: prevLoading, err: prevErr } = usePreview(project, dataset, table);
   const { data: tech, err: techErr } = useTechProfile(project, dataset, table, techAvailable);
-  const { data: sem, err: semErr } = useSemProfile(project, dataset, table, semAvailable);
-  const { charts, loading: chartsLoading, err: chartsErr } = useChartSuggestions(tech, sem, techAvailable);
+  const { data: sem, err: semErr, save: saveSem } = useSemProfile(project, dataset, table, semAvailable);
+  const { charts, loading: chartsLoading, err: chartsErr } = useChartSuggestions(
+    tech, sem, techAvailable && visited(3),
+  );
 
   const businessName = sem?.business_name;
   const tableDefinition = sem?.table_definition;
@@ -33,9 +44,9 @@ export default function TablePage() {
   const disabled = useMemo(() => [false, false, !techAvailable, !techAvailable, !techAvailable], [techAvailable]);
 
   return (
-    <div style={{ padding: "32px 40px", maxWidth: 1000 }}>
+    <div style={{ padding: "32px 40px" }}>
       {/* Header */}
-      <h1 style={{ margin: 0, fontSize: 24, fontWeight: 400, color: "var(--wb-text)" }}>
+      <h1 style={{ margin: 0, fontSize: 24, fontWeight: 400, color: "var(--wb-text)", display: "flex", alignItems: "center", gap: 8 }}>
         {businessName ? (
           <span style={{ fontWeight: 700, color: "var(--wb-primary)" }}>{businessName}</span>
         ) : (
@@ -44,6 +55,7 @@ export default function TablePage() {
             <span style={{ fontWeight: 700, color: "var(--wb-primary)" }}>{table}</span>
           </>
         )}
+        <HelpIcon title="Table Detail" content="Use the tabs to explore this table's preview, technical stats, semantic metadata, and visualizations. Click 'Profile' buttons to generate or refresh profiles." />
       </h1>
       <p style={{ color: "var(--wb-muted)", margin: "4px 0 0", fontSize: 14 }}>
         {project}.{dataset}.{table}
@@ -116,7 +128,7 @@ export default function TablePage() {
 
       {/* Tabs */}
       <div style={{ marginTop: 20 }}>
-        <Tabs labels={tabs} active={tab} onChange={setTab} disabled={disabled} />
+        <Tabs labels={tabs} active={tab} onChange={handleTabChange} disabled={disabled} />
       </div>
 
       {/* Tab content */}
@@ -142,7 +154,7 @@ export default function TablePage() {
             kind="semantic"
           />
           {semErr ? <p style={{ color: "var(--wb-danger)" }}>{semErr}</p> : null}
-          <SemProfileView data={sem} />
+          <SemProfileView data={sem} onSave={saveSem} />
         </>
       ) : null}
 

@@ -1,12 +1,36 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { SemProfile, SemColumn } from "../types/profile";
-import { Badge, Card, Stack } from "./rds";
+import { Badge, Button, Card, Stack } from "./rds";
+
+const SENSITIVITY_DISPLAY: Record<string, string> = {
+  P_PNAME: "Name", P_STREETADDR: "Address", P_GEOREGION: "Geo Region",
+  P_POSTALCODE: "Postal Code", P_DATE: "Date", P_DOB: "DOB", P_DOD: "DOD",
+  P_AGE: "Age", P_PHONE: "Phone", P_FAX: "Fax", P_EMAIL: "Email",
+  P_SSN: "SSN", P_MRN: "MRN", P_HPBN: "Health Plan #", P_ACCOUNTNUM: "Account #",
+  P_CERT: "Cert/License", P_VEHICLEID: "Vehicle ID", P_DEVICEID: "Device ID",
+  P_BIOMETRIC: "Biometric", P_IPADDR: "IP Address", P_URL: "URL",
+  P_FULLFACEPHOTO: "Photo", P_RACEETHNICITY: "Race/Ethnicity",
+  UID: "Unique ID", FREETEXT: "Free Text",
+  PHI: "PHI", PII: "PII",
+};
+
+const HIPAA_DIRECT = new Set([
+  "P_PNAME", "P_STREETADDR", "P_POSTALCODE", "P_DOB", "P_DOD", "P_AGE",
+  "P_PHONE", "P_FAX", "P_EMAIL", "P_SSN", "P_MRN", "P_HPBN",
+  "P_ACCOUNTNUM", "P_CERT", "P_VEHICLEID", "P_DEVICEID", "P_BIOMETRIC",
+  "P_IPADDR", "P_URL", "P_FULLFACEPHOTO",
+]);
+
+function sensLabel(code: string): string {
+  return SENSITIVITY_DISPLAY[code] || code;
+}
 
 function sensTone(s: string): "neutral" | "info" | "success" | "warn" | "danger" {
-  if (s === "PHI") return "danger";
-  if (s === "PII") return "warn";
-  if (s === "UID") return "info";
-  return "neutral";
+  if (!s) return "neutral";
+  if (HIPAA_DIRECT.has(s) || s === "PHI") return "danger";
+  if (s === "P_RACEETHNICITY" || s === "P_DATE" || s === "P_GEOREGION" || s === "PII") return "warn";
+  if (s === "UID" || s === "FREETEXT") return "info";
+  return "warn";
 }
 
 function confTone(c: string): "success" | "warn" | "danger" | "neutral" {
@@ -172,8 +196,7 @@ function ConceptBindingBadge(props: { col: SemColumn }) {
     return (
       <div>
         <span style={{ ...cbStyle, background: "#e3f2fd", color: "#1565c0" }}>
-          <span style={{ fontWeight: 700 }}>Fixed</span>
-          <span>{systemShortName(cb.system)}:{cb.code}</span>
+          {systemShortName(cb.system)}:{cb.code}
         </span>
         {cb.display && (
           <div style={{ fontSize: 11, color: "var(--wb-muted)", marginTop: 1 }}>{cb.display}</div>
@@ -186,8 +209,7 @@ function ConceptBindingBadge(props: { col: SemColumn }) {
     return (
       <div>
         <span style={{ ...cbStyle, background: "#fff3e0", color: "#e65100" }}>
-          <span style={{ fontWeight: 700 }}>Codes</span>
-          <span>{systemShortName(csb.system)}</span>
+          {systemShortName(csb.system)}
         </span>
         {csb.display && (
           <div style={{ fontSize: 11, color: "var(--wb-muted)", marginTop: 1 }}>{csb.display}</div>
@@ -337,7 +359,7 @@ function ConceptsSummaryPanel(props: { data: SemProfile }) {
   if (total === 0) return null;
 
   return (
-    <Card title="Concepts in this Table">
+    <Card title="Terminology">
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
         <button
           onClick={() => setExpanded(!expanded)}
@@ -356,9 +378,9 @@ function ConceptsSummaryPanel(props: { data: SemProfile }) {
       </div>
       {!expanded ? (
         <div style={{ fontSize: 13, color: "var(--wb-muted)" }}>
-          {fixedBindings.length > 0 && <span>{fixedBindings.length} fixed concept binding{fixedBindings.length > 1 ? "s" : ""}</span>}
+          {fixedBindings.length > 0 && <span>{fixedBindings.length} standard term{fixedBindings.length > 1 ? "s" : ""}</span>}
           {fixedBindings.length > 0 && codeSystemBindings.length > 0 && " · "}
-          {codeSystemBindings.length > 0 && <span>{codeSystemBindings.length} code system binding{codeSystemBindings.length > 1 ? "s" : ""}</span>}
+          {codeSystemBindings.length > 0 && <span>{codeSystemBindings.length} code system{codeSystemBindings.length > 1 ? "s" : ""}</span>}
           {(fixedBindings.length > 0 || codeSystemBindings.length > 0) && cohortDims.length > 0 && " · "}
           {cohortDims.length > 0 && <span>{cohortDims.length} cohort dimension{cohortDims.length > 1 ? "s" : ""}</span>}
         </div>
@@ -367,7 +389,7 @@ function ConceptsSummaryPanel(props: { data: SemProfile }) {
           {fixedBindings.length > 0 && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#1565c0", marginBottom: 6 }}>
-                Fixed Concept Bindings ({fixedBindings.length})
+                Standard Terms ({fixedBindings.length})
               </div>
               {fixedBindings.map((b) => (
                 <div key={b.col} style={{ fontSize: 12, padding: "3px 0", display: "flex", gap: 8 }}>
@@ -384,7 +406,7 @@ function ConceptsSummaryPanel(props: { data: SemProfile }) {
           {codeSystemBindings.length > 0 && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#e65100", marginBottom: 6 }}>
-                Code System Bindings ({codeSystemBindings.length})
+                Code Systems ({codeSystemBindings.length})
               </div>
               {codeSystemBindings.map((b) => (
                 <div key={b.col} style={{ fontSize: 12, padding: "3px 0", display: "flex", gap: 8 }}>
@@ -460,14 +482,87 @@ function StructuralLinksPanel(props: { links?: SemProfile["structural_links"] })
   );
 }
 
+// ── Inline edit helpers ────────────────────────────────────────────────────
+
+const METHODS = ["", "self-reported", "clinician-reported", "lab-measured", "device-collected", "derived", "administrative"];
+const SENSITIVITIES = [
+  "", "P_PNAME", "P_STREETADDR", "P_GEOREGION", "P_POSTALCODE",
+  "P_DATE", "P_DOB", "P_DOD", "P_AGE", "P_PHONE", "P_FAX", "P_EMAIL",
+  "P_SSN", "P_MRN", "P_HPBN", "P_ACCOUNTNUM", "P_CERT", "P_VEHICLEID",
+  "P_DEVICEID", "P_BIOMETRIC", "P_IPADDR", "P_URL", "P_FULLFACEPHOTO",
+  "P_RACEETHNICITY", "UID", "FREETEXT",
+];
+const CONFIDENCES = ["high", "medium", "low"];
+
+const cellSelect: React.CSSProperties = {
+  padding: "4px 6px",
+  borderRadius: 4,
+  border: "1px solid var(--wb-border)",
+  fontSize: 12,
+  fontFamily: "var(--wb-font)",
+  background: "#fff",
+  width: "100%",
+};
+
+const cellInput: React.CSSProperties = {
+  ...cellSelect,
+  outline: "none",
+};
+
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export function SemProfileView(props: { data: SemProfile | null; loading?: boolean }) {
-  if (props.loading) return <p>Loading semantic profile…</p>;
+export function SemProfileView(props: {
+  data: SemProfile | null;
+  loading?: boolean;
+  onSave?: (columns: SemColumn[]) => Promise<unknown>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editCols, setEditCols] = useState<SemColumn[]>([]);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+
+  const startEdit = useCallback(() => {
+    if (!props.data) return;
+    setEditCols(props.data.columns.map((c) => ({ ...c })));
+    setEditing(true);
+    setSaveErr(null);
+  }, [props.data]);
+
+  const cancelEdit = useCallback(() => {
+    setEditing(false);
+    setEditCols([]);
+    setSaveErr(null);
+  }, []);
+
+  const updateCol = useCallback((idx: number, field: keyof SemColumn, value: string) => {
+    setEditCols((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!props.onSave) return;
+    setSaving(true);
+    setSaveErr(null);
+    try {
+      await props.onSave(editCols);
+      setEditing(false);
+      setEditCols([]);
+    } catch (e) {
+      setSaveErr(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [props.onSave, editCols]);
+
+  if (props.loading) return <p>Loading semantic profile...</p>;
   if (!props.data) return <p style={{ color: "var(--wb-muted)" }}>No semantic profile yet.</p>;
 
   const d = props.data;
   const cohortSet = new Set(d.cohort_dimensions || []);
+  const rows = editing ? editCols : d.columns;
 
   return (
     <Stack gap={16}>
@@ -493,44 +588,129 @@ export function SemProfileView(props: { data: SemProfile | null; loading?: boole
 
       <StructuralLinksPanel links={d.structural_links} />
 
-      <Card title="Column semantics">
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--wb-text)" }}>Column semantics</h3>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {saveErr && <span style={{ fontSize: 12, color: "var(--wb-danger)" }}>Save failed</span>}
+            {editing ? (
+              <>
+                <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={saving}>Cancel</Button>
+                <Button size="sm" variant="primary" onClick={handleSave} disabled={saving}>
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </>
+            ) : (
+              props.onSave && <Button size="sm" onClick={startEdit}>Edit</Button>
+            )}
+          </div>
+        </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ borderCollapse: "collapse", width: "100%" }}>
             <thead>
               <tr>
-                {["Column", "Definition", "Concept / Codes", "Method", "Unit", "Sensitivity", "Cohort", "Confidence"].map((h) => (
+                {["Column", "Definition", "Terminology", "Method", "Unit", "Sensitivity", "Cohort", "Confidence"].map((h) => (
                   <th key={h} style={th}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {d.columns.map((c) => (
+              {rows.map((c, i) => (
                 <tr key={c.name}>
                   <td style={{ ...td, fontWeight: 600, whiteSpace: "nowrap" }}>{c.name}</td>
-                  <td style={{ ...td, maxWidth: 300, lineHeight: 1.5 }}>{c.definition}</td>
+
+                  {/* Definition */}
+                  <td style={{ ...td, minWidth: 200 }}>
+                    {editing ? (
+                      <textarea
+                        value={c.definition}
+                        onChange={(e) => updateCol(i, "definition", e.target.value)}
+                        rows={2}
+                        style={{ ...cellInput, resize: "vertical", minHeight: 40, width: "100%" }}
+                      />
+                    ) : (
+                      <span style={{ lineHeight: 1.5 }}>{c.definition}</span>
+                    )}
+                  </td>
+
+                  {/* Terminology — always read-only */}
                   <td style={{ ...td, minWidth: 160 }}>
                     <ConceptBindingBadge col={c} />
                   </td>
+
+                  {/* Method */}
                   <td style={td}>
-                    <MeasurementMethodBadge method={c.measurement_method} />
+                    {editing ? (
+                      <select
+                        value={c.measurement_method || ""}
+                        onChange={(e) => updateCol(i, "measurement_method", e.target.value)}
+                        style={cellSelect}
+                      >
+                        {METHODS.map((m) => (
+                          <option key={m} value={m}>{m || "—"}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <MeasurementMethodBadge method={c.measurement_method} />
+                    )}
                   </td>
+
+                  {/* Unit */}
                   <td style={{ ...td, whiteSpace: "nowrap" }}>
-                    {c.unit_of_measure ? (
+                    {editing ? (
+                      <input
+                        value={c.unit_of_measure || ""}
+                        onChange={(e) => updateCol(i, "unit_of_measure", e.target.value)}
+                        style={{ ...cellInput, width: 80 }}
+                      />
+                    ) : c.unit_of_measure ? (
                       <Badge tone="info">{c.unit_of_measure}</Badge>
                     ) : (
                       <span style={{ color: "var(--wb-muted)" }}>—</span>
                     )}
                   </td>
+
+                  {/* Sensitivity */}
                   <td style={td}>
-                    {c.sensitivity ? <Badge tone={sensTone(c.sensitivity)}>{c.sensitivity}</Badge> : "—"}
+                    {editing ? (
+                      <select
+                        value={c.sensitivity || ""}
+                        onChange={(e) => updateCol(i, "sensitivity", e.target.value)}
+                        style={cellSelect}
+                      >
+                        {SENSITIVITIES.map((s) => (
+                          <option key={s} value={s}>{s ? `${sensLabel(s)} (${s})` : "—"}</option>
+                        ))}
+                      </select>
+                    ) : c.sensitivity ? (
+                      <Badge tone={sensTone(c.sensitivity)}>{sensLabel(c.sensitivity)}</Badge>
+                    ) : (
+                      "—"
+                    )}
                   </td>
+
+                  {/* Cohort — always read-only */}
                   <td style={td}>
                     {cohortSet.has(c.name) ? (
                       <ValueSetTag values={c.value_set_binding || []} columnName={c.name} />
                     ) : "—"}
                   </td>
+
+                  {/* Confidence */}
                   <td style={td}>
-                    <Badge tone={confTone(c.confidence)}>{c.confidence}</Badge>
+                    {editing ? (
+                      <select
+                        value={c.confidence}
+                        onChange={(e) => updateCol(i, "confidence", e.target.value)}
+                        style={cellSelect}
+                      >
+                        {CONFIDENCES.map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Badge tone={confTone(c.confidence)}>{c.confidence}</Badge>
+                    )}
                   </td>
                 </tr>
               ))}

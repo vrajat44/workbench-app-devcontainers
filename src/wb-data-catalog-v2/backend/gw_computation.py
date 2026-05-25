@@ -20,7 +20,10 @@ def execute_workflow(
 ) -> list[dict[str, Any]]:
     sql = translate(fq_table, payload)
     client = bigquery.Client(project=billing_project)
-    rows = client.query(sql).result()
+    try:
+        rows = client.query(sql).result(timeout=120)
+    except Exception as e:
+        raise ValueError(f"Query execution failed: {e}")
     return [dict(r) for r in rows]
 
 

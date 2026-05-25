@@ -130,6 +130,8 @@ function MessageBubble({ msg }: { msg: ChatMessageData }) {
   );
 }
 
+// Safety: &, <, > are escaped BEFORE any HTML is injected, so user content
+// cannot break out. Subsequent replacements only insert fixed safe tags.
 function renderMarkdown(text: string): string {
   let html = text
     .replace(/&/g, "&amp;")
