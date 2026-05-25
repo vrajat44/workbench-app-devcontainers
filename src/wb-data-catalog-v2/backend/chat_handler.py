@@ -257,8 +257,10 @@ async def handle_chat_message(
     session = chat_store.get_or_create(session_id, ctx, mode)
     session.add_message(ChatMessage(role="user", content=message, mode=mode))
 
-    metadata_model = model or "gemini-3.5-flash"
-    agent_model = model or "gemini-3.5-flash"
+    from verily_profiler.llm import detect_available_model
+    detected = detect_available_model(billing_project)
+    metadata_model = model or detected
+    agent_model = model or detected
 
     if mode == "agent":
         reply = await _handle_agent(message, session, agent_model, billing_project)

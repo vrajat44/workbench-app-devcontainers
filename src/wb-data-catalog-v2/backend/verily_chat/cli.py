@@ -24,7 +24,7 @@ def main():
 @click.option("--table", default=None, help="Fully-qualified table name (project.dataset.table)")
 @click.option("--project", default=None, help="GCP project containing the data")
 @click.option("--bucket", required=True, help="GCS bucket with profiling output")
-@click.option("--model", default="gemini-3.5-flash", help="Gemini model name")
+@click.option("--model", default="", help="Gemini model name (auto-detect if empty)")
 @click.option("--billing-project", default=None, help="Project for Vertex AI billing")
 def ask(question: str, table: str | None, project: str | None, bucket: str, model: str, billing_project: str | None):
     """Ask a single question about table metadata."""
@@ -43,7 +43,7 @@ def ask(question: str, table: str | None, project: str | None, bucket: str, mode
 @main.command()
 @click.option("--project", required=True, help="GCP project containing the data")
 @click.option("--bucket", required=True, help="GCS bucket with profiling output")
-@click.option("--model", default="gemini-3.5-flash", help="Gemini model name")
+@click.option("--model", default="", help="Gemini model name (auto-detect if empty)")
 @click.option("--billing-project", default=None, help="Project for Vertex AI billing")
 @click.option("--table", default=None, help="Focus on a specific table")
 def session(project: str, bucket: str, model: str, billing_project: str | None, table: str | None):

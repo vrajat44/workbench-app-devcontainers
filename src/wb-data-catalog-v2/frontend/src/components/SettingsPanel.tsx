@@ -10,13 +10,19 @@ interface ModelOption {
 
 function useModels() {
   const [models, setModels] = useState<ModelOption[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
+  const [detected, setDetected] = useState<{ model: string | null; location: string | null }>({ model: null, location: null });
   useEffect(() => {
     fetch("/api/models")
       .then((r) => r.json())
-      .then((d) => setModels(d.models || []))
+      .then((d) => {
+        setModels(d.models || []);
+        setLocations(d.locations || []);
+        setDetected({ model: d.detected_model || null, location: d.detected_location || null });
+      })
       .catch(() => {});
   }, []);
-  return models;
+  return { models, locations, detected };
 }
 
 interface SaveResult extends ApiConfig {
@@ -42,7 +48,7 @@ export function SettingsPanel(props: {
   const c = props.config;
 
   const { workspaces, loading: wsLoading } = useWorkspaces();
-  const models = useModels();
+  const { models, locations, detected } = useModels();
 
   const defaultBp = c?.billing_project || c?.default_billing_project || "";
   const [useManual, setUseManual] = useState(false);
@@ -56,6 +62,7 @@ export function SettingsPanel(props: {
 
   const [selectedDataProject, setSelectedDataProject] = useState(c?.data_project ?? "");
   const [model, setModel] = useState(c?.gemini_model ?? "");
+  const [location, setLocation] = useState("auto");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [bucketMsg, setBucketMsg] = useState<string | null>(null);
@@ -248,26 +255,45 @@ export function SettingsPanel(props: {
           )}
           </>}
 
-          {/* Gemini model */}
-          <label style={{ fontSize: 14 }}>
-            <strong>Gemini Model</strong>
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              style={selectStyle}
-            >
-              {models.length > 0 ? (
-                models.map((m) => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))
-              ) : (
-                <>
-                  <option value="">Auto-detect</option>
-                  <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-                </>
-              )}
-            </select>
-          </label>
+          {/* Gemini model + location */}
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>AI Model</div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <label style={{ flex: 1, fontSize: 13 }}>
+                Model
+                <select value={model} onChange={(e) => setModel(e.target.value)} style={selectStyle}>
+                  {models.length > 0 ? (
+                    models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)
+                  ) : (
+                    <>
+                      <option value="">Auto-detect</option>
+                      <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    </>
+                  )}
+                </select>
+              </label>
+              <label style={{ flex: 1, fontSize: 13 }}>
+                Location
+                <select value={location} onChange={(e) => setLocation(e.target.value)} style={selectStyle}>
+                  {locations.length > 0 ? (
+                    locations.map((l) => <option key={l} value={l}>{l === "auto" ? "Auto-detect" : l}</option>)
+                  ) : (
+                    <>
+                      <option value="auto">Auto-detect</option>
+                      <option value="us-central1">us-central1</option>
+                      <option value="global">global</option>
+                    </>
+                  )}
+                </select>
+              </label>
+            </div>
+            {detected.model && (
+              <div style={{ fontSize: 12, color: "var(--wb-muted)", marginTop: 6 }}>
+                Active: {detected.model} @ {detected.location}
+              </div>
+            )}
+            <ModelTestButton model={model} location={location} />
+          </div>
 
           {/* Save */}
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -347,6 +373,61 @@ function ResetProfiles(props: { onReset: () => void }) {
         </Button>
         <Button onClick={() => setConfirm(false)}>Cancel</Button>
       </div>
+    </div>
+  );
+}
+
+
+function ModelTestButton(props: { model: string; location: string }) {
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState<{ status: string; model?: string; location?: string; error?: string } | null>(null);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setResult(null);
+    try {
+      const loc = props.location === "auto" ? "" : props.location;
+      const r = await fetch("/api/models/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: props.model, location: loc || "us-central1" }),
+      });
+      setResult(await r.json());
+    } catch (e: any) {
+      setResult({ status: "error", error: e.message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        onClick={handleTest}
+        disabled={testing}
+        style={{
+          background: "var(--wb-surface)",
+          border: "1px solid var(--wb-border)",
+          borderRadius: 6,
+          padding: "5px 14px",
+          fontSize: 12,
+          cursor: testing ? "wait" : "pointer",
+          fontWeight: 500,
+        }}
+      >
+        {testing ? "Testing..." : "Test connection"}
+      </button>
+      {result && (
+        <span style={{
+          marginLeft: 10,
+          fontSize: 12,
+          color: result.status === "ok" ? "var(--wb-success, #1a7f37)" : "var(--wb-danger, #cf222e)",
+        }}>
+          {result.status === "ok"
+            ? `${result.model} @ ${result.location}`
+            : `Failed: ${result.error?.slice(0, 80)}`}
+        </span>
+      )}
     </div>
   );
 }

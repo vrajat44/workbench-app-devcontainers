@@ -227,7 +227,7 @@ def _reconstruct_tech_profile(data: dict) -> "TechTableProfile":
 @main.command("reconcile")
 @click.argument("project")
 @click.option("--bucket", required=True, help="GCS bucket with profiling output")
-@click.option("--model", default="gemini-3.5-flash", help="Gemini model name")
+@click.option("--model", default="", help="Gemini model name (auto-detect if empty)")
 @click.option("--billing-project", default=None, help="Project for billing")
 @click.option("--apply", "do_apply", is_flag=True, default=False, help="Apply reconciliation (default: dry-run)")
 def reconcile_cmd(project: str, bucket: str, model: str, billing_project: str | None, do_apply: bool):

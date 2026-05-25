@@ -145,7 +145,7 @@ def _make_tools(context: ChatContext, billing_project: str | None):
 
 def create_chat_agent(
     context: ChatContext,
-    model: str = "gemini-3.5-flash",
+    model: str = "",
     project_id: str | None = None,
     location: str = "",
 ):
@@ -167,11 +167,12 @@ def create_chat_agent(
     system_prompt = build_catalog_system_prompt(context, mode="agent")
     tools = _make_tools(context, bp)
 
-    from verily_profiler.llm import _get_location
+    from verily_profiler.llm import _get_location, _resolved_model
     loc = location or _get_location()
+    resolved_model = model or _resolved_model or "gemini-2.5-flash"
 
     llm = ChatVertexAI(
-        model_name=model,
+        model_name=resolved_model,
         project=bp,
         location=loc,
         temperature=0.1,

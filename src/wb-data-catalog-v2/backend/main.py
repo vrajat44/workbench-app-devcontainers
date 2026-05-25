@@ -385,18 +385,53 @@ def api_config():
     }
 
 
+SUPPORTED_LOCATIONS = ["auto", "us-central1", "global", "europe-west4"]
+
 SUPPORTED_MODELS = [
     {"id": "", "label": "Auto-detect (recommended)"},
-    {"id": "gemini-3.5-flash", "label": "Gemini 3.5 Flash"},
-    {"id": "gemini-3.5-pro", "label": "Gemini 3.5 Pro"},
     {"id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash"},
     {"id": "gemini-2.5-pro", "label": "Gemini 2.5 Pro"},
+    {"id": "gemini-3.5-flash", "label": "Gemini 3.5 Flash"},
+    {"id": "gemini-3.5-pro", "label": "Gemini 3.5 Pro"},
 ]
 
 
 @app.get("/api/models")
 def api_models():
-    return {"models": SUPPORTED_MODELS}
+    from verily_profiler.llm import _resolved_model, _resolved_location
+    return {
+        "models": SUPPORTED_MODELS,
+        "locations": SUPPORTED_LOCATIONS,
+        "detected_model": _resolved_model,
+        "detected_location": _resolved_location,
+    }
+
+
+@app.post("/api/models/test")
+def api_test_model(body: dict[str, Any]):
+    """Test if a specific model + location combination works."""
+    model = body.get("model", "")
+    location = body.get("location", "us-central1")
+    if not model:
+        from verily_profiler.llm import detect_available_model
+        try:
+            detected = detect_available_model(BILLING_PROJECT)
+            from verily_profiler.llm import _resolved_location
+            return {"status": "ok", "model": detected, "location": _resolved_location}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    try:
+        from verily_profiler.llm import _get_client
+        from google.genai.types import GenerateContentConfig
+        client = _get_client(BILLING_PROJECT, location)
+        client.models.generate_content(
+            model=model,
+            contents="Reply with just the word: ok",
+            config=GenerateContentConfig(temperature=0.0, max_output_tokens=8),
+        )
+        return {"status": "ok", "model": model, "location": location}
+    except Exception as e:
+        return {"status": "error", "model": model, "location": location, "error": str(e)}
 
 
 def _ensure_bucket(bucket_name: str, project_id: str) -> dict[str, Any]:

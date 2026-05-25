@@ -71,7 +71,7 @@ Return ONLY JSON.
 
 def reconcile(
     registry: TerminologyRegistry,
-    model: str = "gemini-3.5-flash",
+    model: str = "",
     project_id: Optional[str] = None,
 ) -> list[ReconcileGroup]:
     """

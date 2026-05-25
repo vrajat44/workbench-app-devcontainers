@@ -18,7 +18,7 @@ def chat(
     message: str,
     context: ChatContext,
     history: list[ChatMessage] | None = None,
-    model: str = "gemini-3.5-flash",
+    model: str = "",
     project_id: str | None = None,
 ) -> ChatMessage:
     """
