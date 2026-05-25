@@ -1,24 +1,17 @@
-# Aligns with Verily Workbench custom-app requirements:
-# https://github.com/vrajat44/workbench-app-devcontainers/blob/master/README.md
-# — container_name "application-server", app-network (external), FUSE for gcsfuse.
 services:
   app:
-    # Required by Workbench (see workbench-app-devcontainers src/example/docker-compose.yaml)
     container_name: "application-server"
     build:
       context: .
     restart: always
-    working_dir: /app
-    command: ["./start.sh"]
-    volumes:
-      - .:/workspace:cached
     ports:
-      - 8080:8080
+      - "8080:8080"
     environment:
-      - GCP_PROJECT_ID
-      - DATA_PROJECT_ID
-      - GEMINI_MODEL=gemini-3.5-flash
-      - CHAT_MODEL
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      - DATA_PROJECT_ID=${DATA_PROJECT_ID:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash}
+      - CHAT_MODEL=${CHAT_MODEL:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
     networks:
       - app-network
     cap_add:
@@ -29,7 +22,5 @@ services:
       - apparmor:unconfined
 
 networks:
-  # External network named "app-network" — Workbench creates it; for local compose run once:
-  #   docker network create app-network
   app-network:
     external: true
