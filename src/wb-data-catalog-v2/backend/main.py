@@ -1864,18 +1864,24 @@ def api_chat_context_info():
 # ── Static frontend (production build) ───────────────────────────────────────
 
 if FRONTEND_DIST.is_dir():
-    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+    if (FRONTEND_DIST / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 
-    from starlette.middleware.base import BaseHTTPMiddleware
-    from starlette.responses import Response
+    @app.get("/logo.png")
+    def _serve_logo():
+        logo = FRONTEND_DIST / "logo.png"
+        if logo.is_file():
+            return FileResponse(logo, media_type="image/png")
+        raise HTTPException(404)
 
-    class SPAFallbackMiddleware(BaseHTTPMiddleware):
-        async def dispatch(self, request, call_next):
-            response = await call_next(request)
-            if response.status_code == 404 and not request.url.path.startswith("/api/"):
-                index = FRONTEND_DIST / "index.html"
-                if index.is_file():
-                    return FileResponse(index)
-            return response
-
-    app.add_middleware(SPAFallbackMiddleware)
+    @app.get("/{path:path}")
+    def _spa_fallback(path: str):
+        # Serve static file if it exists at root level
+        candidate = FRONTEND_DIST / path
+        if path and candidate.is_file() and ".." not in path:
+            return FileResponse(candidate)
+        # Otherwise serve index.html for SPA routing
+        index = FRONTEND_DIST / "index.html"
+        if index.is_file():
+            return FileResponse(index, media_type="text/html")
+        raise HTTPException(404)
