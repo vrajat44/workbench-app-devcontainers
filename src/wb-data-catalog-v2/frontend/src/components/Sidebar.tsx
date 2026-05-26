@@ -62,9 +62,7 @@ export function Sidebar(props: {
       <div style={{ padding: "20px 20px 12px" }}>
         <Link to="/" style={{ textDecoration: "none", color: "var(--wb-sidebar-text)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <img src="/logo.png" alt="Data Catalog" width={28} height={28} style={{ borderRadius: 6 }} />
             <div>
               <div style={{ fontWeight: 700, fontSize: 16, lineHeight: 1.2 }}>workbench</div>
               <div style={{ fontSize: 12, color: "var(--wb-sidebar-muted)", lineHeight: 1.2 }}>Data Catalog v2</div>
