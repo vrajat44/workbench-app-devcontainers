@@ -235,17 +235,7 @@ def _fq(project_id: str, dataset_id: str, table_id: str) -> str:
 
 @app.get("/api/health")
 def health():
-    frontend_files = []
-    if FRONTEND_DIST.is_dir():
-        frontend_files = [str(p.relative_to(FRONTEND_DIST)) for p in FRONTEND_DIST.rglob("*") if p.is_file()]
-    return {
-        "status": "ok",
-        "data_project": DATA_PROJECT,
-        "profile_bucket": PROFILE_BUCKET,
-        "frontend_dist": str(FRONTEND_DIST),
-        "frontend_exists": FRONTEND_DIST.is_dir(),
-        "frontend_files": frontend_files[:20],
-    }
+    return {"status": "ok", "data_project": DATA_PROJECT, "profile_bucket": PROFILE_BUCKET}
 
 
 @app.get("/api/health/deep")
