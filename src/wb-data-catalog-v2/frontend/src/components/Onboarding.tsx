@@ -15,11 +15,10 @@ const STEPS: StepDef[] = [
     body: (totalTables) => (
       <>
         <p style={bodyText}>
-          Select tables below and click{" "}
-          <strong>Profile entire project</strong> to generate metadata.
-          Technical profiling captures column stats, null rates, and data
-          patterns. Semantic profiling uses AI to add business names,
-          definitions, and sensitivity labels.
+          Click <strong>Profile Wizard</strong> to select tables, configure
+          terminology domains, and generate metadata. You can choose technical
+          profiling (column stats), semantic profiling (AI-powered definitions
+          and sensitivity labels), or both.
         </p>
         <p style={{ ...bodyText, fontWeight: 600, color: "var(--wb-primary)" }}>
           You have {totalTables} table{totalTables === 1 ? "" : "s"} ready to

@@ -260,15 +260,15 @@ const helpContent: Record<string, HelpTip[]> = {
     },
     {
       title: "Profiling",
-      body: "Select tables and click ‘Profile entire project’ to generate metadata. Technical profiling captures column statistics (null rates, distinct counts, top values). Semantic profiling uses AI to add business names, definitions, and sensitivity labels.",
+      body: "Click ‘Profile Wizard’ to configure and run profiling. Choose technical, semantic, or both modes, select terminology domains relevant to your data, and optionally upload supporting documentation.",
     },
     {
       title: "Filtering",
       body: "Use the search box to find tables by name. Use the profiling filter to show only profiled or unprofiled tables.",
     },
     {
-      title: "Bulk Actions",
-      body: "Select multiple tables using checkboxes, then use the floating action bar to profile them together.",
+      title: "Profile Wizard",
+      body: "Use the Profile Wizard to profile multiple tables at once. It guides you through selecting tables, choosing terminology domains, uploading data dictionaries, and monitoring progress with a live log stream.",
     },
   ],
   table: [

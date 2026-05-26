@@ -685,7 +685,7 @@ export function SemProfileView(props: {
                     ) : c.sensitivity ? (
                       <Badge tone={sensTone(c.sensitivity)}>{sensLabel(c.sensitivity)}</Badge>
                     ) : (
-                      "—"
+                      <span style={{ color: "var(--wb-success)", fontSize: 12 }}>None</span>
                     )}
                   </td>
 

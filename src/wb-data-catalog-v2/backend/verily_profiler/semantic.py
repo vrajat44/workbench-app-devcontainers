@@ -28,6 +28,7 @@ from verily_profiler.models import (
     _slugify,
 )
 from verily_profiler.llm import call_gemini, extract_json_from_response
+from verily_profiler.terminology_domains import build_terminology_prompt_section
 
 
 # ── Fixed domain taxonomy ─────────────────────────────────────────────────────
@@ -56,7 +57,10 @@ _TAXONOMY_LIST = "\n".join(f"  - {d}" for d in DOMAIN_TAXONOMY)
 
 # ── System Prompts ────────────────────────────────────────────────────────────
 
-_SEMANTIC_SYSTEM_PROMPT = f"""\
+def _build_system_prompt(terminology_domains: list[str] | None = None) -> str:
+    """Build the semantic profiling system prompt with dynamic terminology rules."""
+    term_section = build_terminology_prompt_section(terminology_domains)
+    return f"""\
 You are a data governance and metadata specialist. You analyze BigQuery table
 schemas and technical profiling data to generate rich semantic metadata.
 
@@ -87,28 +91,7 @@ Return a single JSON object with these top-level fields:
    - "definition": plain-language description (2-3 sentences)
    - "terminology_bindings": array of objects with "system", "code", "display"
 
-     TERMINOLOGY BINDING RULES — CRITICAL:
-       a) Map the column's CONCEPT (not its raw values) to a standard terminology:
-          - http://loinc.org — for lab tests, vital signs, clinical observations
-          - http://snomed.info/sct — for clinical findings, procedures, conditions
-          - http://hl7.org/fhir/sid/icd-10 — for diagnoses and conditions
-          - http://www.nlm.nih.gov/research/umls/rxnorm — for medications
-          - http://hl7.org/fhir/sid/ndc — for drug products
-          - http://www.ama-assn.org/go/cpt — for medical procedures
-       b) If the column concept does NOT map to any standard system, create a
-          CUSTOM terminology entry:
-          - system: "urn:verily:custom"
-          - code: a stable snake_case slug describing the concept
-            (e.g. "study_site_identifier", "patient_enrollment_status",
-             "adverse_event_severity_grade")
-          - display: a clear human-readable name for the concept
-       c) EVERY column that represents meaningful data MUST get at least one
-          binding — either standard or custom.
-       d) SKIP terminology bindings ONLY for purely structural columns:
-          surrogate keys, auto-increment IDs, system timestamps (created_at,
-          updated_at), row version numbers, ETL flags. Set to [] for these.
-       e) If an EXISTING REGISTRY is provided below, REUSE entries from it
-          when the concept matches. Use the exact same system + code.
+{term_section}
 
    - "sensitivity": a code from the SENSITIVITY VALUE SET below, or "" if not sensitive.
        Pick the MOST SPECIFIC code that applies. Use "" for columns with no privacy concern.
@@ -119,8 +102,13 @@ Return a single JSON object with these top-level fields:
    - "confidence": "high", "medium", or "low"
    - "unit_of_measure": the measurement unit for this column if applicable
        (e.g. "mg/dL", "kg", "years", "USD", "count", "percentage").
-       Set to "" (empty string) if the column does not represent a measurement.
-       Do NOT flag missing units as an error.
+       Set to "unitless" for true dimensionless quantities: ratios, log-scale
+       values, indices, scores, boolean flags, or counts that are not
+       measurements (e.g. a "rule of 5 violations" count is unitless; a
+       "white blood cell count per µL" has a unit).
+       Set to "" for non-measurement columns (identifiers, names, codes,
+       timestamps). Do NOT set "unitless" on columns that have real physical
+       units. Do NOT flag missing units as an error.
    - "measurement_method": how the data in this column was captured or derived.
        Use EXACTLY ONE of these values:
          "self-reported"       — patient/participant-reported data (surveys, questionnaires, medical history)
@@ -182,6 +170,7 @@ def profile_semantic(
     context_text: Optional[str] = None,
     run_judge: bool = False,
     registry: Optional[TerminologyRegistry] = None,
+    terminology_domains: Optional[list[str]] = None,
 ) -> tuple[SemanticTableProfile, list[TermEntry]]:
     """
     Generate semantic profiles for all columns in a table.
@@ -194,6 +183,8 @@ def profile_semantic(
         run_judge: Whether to run the LLM-as-Judge validation pass.
         registry: Existing terminology registry for reuse. If None, no
                   registry context is injected.
+        terminology_domains: List of domain keys (e.g. ["clinical", "life_sciences"])
+                  to include in the prompt. If None, all domains are used.
 
     Returns:
         Tuple of (SemanticTableProfile, list of new TermEntry objects to
@@ -205,10 +196,11 @@ def profile_semantic(
     )
 
     user_msg = _build_profiling_prompt(tech_profile, context_text, registry)
+    system_prompt = _build_system_prompt(terminology_domains)
 
     try:
         response = call_gemini(
-            system_prompt=_SEMANTIC_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
             user_message=user_msg,
             model_name=model,
             project_id=project_id,
@@ -439,9 +431,13 @@ def _collect_applicability_warnings(sem_profile, tech_profile):
     if not sem_profile.granularity:
         warnings.append("Granularity could not be determined")
     numeric_cols_without_uom = []
+    pk_cols = set(sem_profile.primary_key.columns) if sem_profile.primary_key else set()
     for sc in sem_profile.columns:
         tc = tech_profile.get_column(sc.column_name)
-        if tc and tc.min_value is not None and not sc.unit_of_measure:
+        if (tc and tc.min_value is not None
+                and not sc.unit_of_measure
+                and sc.measurement_method != "administrative"
+                and sc.column_name not in pk_cols):
             numeric_cols_without_uom.append(sc.column_name)
     if numeric_cols_without_uom:
         cols = ", ".join(numeric_cols_without_uom[:5])

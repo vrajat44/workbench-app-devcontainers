@@ -22,7 +22,7 @@ else:
 logger = logging.getLogger("datacatalog")
 from typing import Any, Optional
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -856,11 +856,21 @@ from bulk_profiler import bulk_manager
 def api_bulk_profile(body: dict[str, Any]):
     """
     Start bulk profiling.
-    Body: { tables: ["fq1", ...], mode: "technical" | "semantic" | "both", force?: boolean }
+    Body: {
+        tables: ["fq1", ...],
+        mode: "technical" | "semantic" | "both",
+        force?: boolean,
+        terminology_domains?: ["clinical", "life_sciences"],
+        doc_context?: str,
+        run_join_inference?: boolean,
+    }
     """
     tables = body.get("tables", [])
     mode = body.get("mode", "both")
     force = bool(body.get("force", False))
+    terminology_domains = body.get("terminology_domains", [])
+    doc_context = body.get("doc_context", "")
+    run_join_inference = bool(body.get("run_join_inference", False))
     if not tables:
         raise HTTPException(400, "tables list is required")
     if mode not in ("technical", "semantic", "both"):
@@ -877,6 +887,9 @@ def api_bulk_profile(body: dict[str, Any]):
         data_project=DATA_PROJECT,
         model_name=GEMINI_MODEL,
         force=force,
+        terminology_domains=terminology_domains or None,
+        doc_context=doc_context,
+        run_join_inference=run_join_inference,
     )
     return {"batch_id": batch_id, "total": len(tables), "mode": mode, "force": force}
 
@@ -888,6 +901,161 @@ def api_bulk_status(batch_id: str):
     if not batch:
         raise HTTPException(404, "Batch not found")
     return batch.summary()
+
+
+# ── Terminology domains ───────────────────────────────────────────────────────
+
+@app.get("/api/terminology-domains")
+def api_terminology_domains():
+    """Return available terminology domain presets for the Profiling Wizard."""
+    from verily_profiler.terminology_domains import get_domains_metadata
+    return {"domains": get_domains_metadata()}
+
+
+# ── Profiling doc upload ──────────────────────────────────────────────────────
+
+_ALLOWED_DOC_EXTENSIONS = {".pdf", ".md", ".txt", ".csv", ".xlsx"}
+_USER_DOCS_PREFIX = "profiling/{data_project}/_user_docs/"
+
+
+def _docs_gcs_prefix() -> str:
+    return f"profiling/{DATA_PROJECT}/_user_docs/"
+
+
+def _extract_text_from_upload(filename: str, content: bytes) -> str:
+    """Extract text content from uploaded file based on extension."""
+    ext = Path(filename).suffix.lower()
+    if ext in (".md", ".txt"):
+        return content.decode("utf-8", errors="replace")
+    elif ext == ".csv":
+        import csv
+        import io
+        text = content.decode("utf-8", errors="replace")
+        reader = csv.DictReader(io.StringIO(text))
+        lines = []
+        for row in reader:
+            pairs = [f"{k}: {v}" for k, v in row.items() if v]
+            if pairs:
+                lines.append("; ".join(pairs))
+        return "\n".join(lines)
+    elif ext == ".xlsx":
+        import io
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            lines = []
+            for sheet in wb.sheetnames:
+                ws = wb[sheet]
+                rows = list(ws.iter_rows(values_only=True))
+                if not rows:
+                    continue
+                headers = [str(h or "") for h in rows[0]]
+                for row in rows[1:]:
+                    pairs = [f"{headers[i]}: {row[i]}" for i in range(len(headers)) if i < len(row) and row[i]]
+                    if pairs:
+                        lines.append("; ".join(pairs))
+            return "\n".join(lines)
+        except ImportError:
+            return "[XLSX parsing requires openpyxl — install it to enable Excel uploads]"
+    elif ext == ".pdf":
+        import io
+        try:
+            import pdfplumber
+            pages_text = []
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        pages_text.append(text)
+            return "\n\n".join(pages_text)
+        except ImportError:
+            return "[PDF parsing requires pdfplumber — install it to enable PDF uploads]"
+    return content.decode("utf-8", errors="replace")
+
+
+@app.post("/api/profiling/docs")
+async def api_upload_doc(file: UploadFile):
+    """Upload a document to provide context for semantic profiling.
+
+    Accepts PDF, MD, TXT, CSV, XLSX. Extracts text and stores in GCS.
+    """
+    if not DATA_PROJECT or not PROFILE_BUCKET:
+        raise HTTPException(503, "Project or bucket not configured")
+
+    filename = file.filename or "unnamed"
+    ext = Path(filename).suffix.lower()
+    if ext not in _ALLOWED_DOC_EXTENSIONS:
+        raise HTTPException(
+            400,
+            f"Unsupported file type: {ext}. Allowed: {', '.join(sorted(_ALLOWED_DOC_EXTENSIONS))}",
+        )
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:  # 10 MB limit
+        raise HTTPException(400, "File too large (max 10 MB)")
+
+    extracted = _extract_text_from_upload(filename, content)
+
+    # Store to GCS
+    from google.cloud import storage as gcs_storage
+    client = gcs_storage.Client(project=BILLING_PROJECT)
+    bucket_obj = client.bucket(PROFILE_BUCKET.replace("gs://", ""))
+    blob_path = _docs_gcs_prefix() + filename
+    blob = bucket_obj.blob(blob_path)
+    blob.upload_from_string(extracted, content_type="text/plain")
+
+    preview = extracted[:500] if extracted else ""
+    return {
+        "filename": filename,
+        "size": len(content),
+        "extracted_chars": len(extracted),
+        "preview": preview,
+        "gcs_path": f"gs://{PROFILE_BUCKET}/{blob_path}",
+    }
+
+
+@app.get("/api/profiling/docs")
+def api_list_docs():
+    """List uploaded profiling context documents from GCS."""
+    if not DATA_PROJECT or not PROFILE_BUCKET:
+        raise HTTPException(503, "Project or bucket not configured")
+
+    from google.cloud import storage as gcs_storage
+    client = gcs_storage.Client(project=BILLING_PROJECT)
+    bucket_obj = client.bucket(PROFILE_BUCKET.replace("gs://", ""))
+    prefix = _docs_gcs_prefix()
+
+    docs = []
+    for blob in bucket_obj.list_blobs(prefix=prefix):
+        name = blob.name.removeprefix(prefix)
+        if not name:
+            continue
+        docs.append({
+            "filename": name,
+            "size": blob.size,
+            "updated": blob.updated.isoformat() if blob.updated else "",
+            "gcs_path": f"gs://{PROFILE_BUCKET}/{blob.name}",
+        })
+    return {"docs": docs}
+
+
+@app.delete("/api/profiling/docs/{filename}")
+def api_delete_doc(filename: str):
+    """Delete an uploaded profiling context document from GCS."""
+    if not DATA_PROJECT or not PROFILE_BUCKET:
+        raise HTTPException(503, "Project or bucket not configured")
+
+    from google.cloud import storage as gcs_storage
+    client = gcs_storage.Client(project=BILLING_PROJECT)
+    bucket_obj = client.bucket(PROFILE_BUCKET.replace("gs://", ""))
+    blob_path = _docs_gcs_prefix() + filename
+    blob = bucket_obj.blob(blob_path)
+
+    if not blob.exists():
+        raise HTTPException(404, f"Document not found: {filename}")
+
+    blob.delete()
+    return {"deleted": filename}
 
 
 # ── Cohort builder ──────────────────────────────────────────────────────────

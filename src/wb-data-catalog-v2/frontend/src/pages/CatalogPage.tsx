@@ -1,17 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FilterBar } from "../components/FilterBar";
-import { BulkActionBar, BulkProgressDrawer } from "../components/BulkProfileBar";
+import { ProfilingWizard } from "../components/ProfilingWizard";
 import Onboarding from "../components/Onboarding";
 import { HelpIcon } from "../components/HelpSystem";
 import { Badge, Card } from "../components/rds";
-import { useBulkProfile } from "../hooks/useBulkProfile";
-import type { BulkMode } from "../types/bulk";
 import type { DatasetStub } from "../hooks/useProgressiveCatalog";
 import type { ApiConfig, CatalogTable } from "../types/catalog";
 
 const PAGE_SIZE = 50;
-const BULK_POLL_INTERVAL = 5000;
 
 function matchesFilter(t: CatalogTable, state: "all" | "none" | "tech" | "full") {
   const tech = t.profiling.technical;
@@ -44,10 +41,9 @@ export default function CatalogHome(props: {
   catalog: { datasets: DatasetStub[]; loadingDatasets: boolean; loadDataset: (id: string) => void; loadAll: () => void };
   onRefresh?: () => void;
 }) {
-  const { datasets: dsStubs, loadingDatasets, loadDataset } = props.catalog;
+  const { datasets: dsStubs, loadingDatasets, loadDataset, loadAll } = props.catalog;
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | "none" | "tech" | "full">("all");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -55,7 +51,7 @@ export default function CatalogHome(props: {
     () => localStorage.getItem("dc_onboarding_dismissed") === "true"
   );
 
-  const bulk = useBulkProfile(props.onRefresh);
+  const [showWizard, setShowWizard] = useState(false);
 
   const allTables = useMemo(() => dsStubs.flatMap((ds) => ds.tables), [dsStubs]);
   const totalTables = allTables.length;
@@ -66,12 +62,6 @@ export default function CatalogHome(props: {
   );
 
   const showOnboarding = !loadingDatasets && totalDatasets > 0 && totalTables > 0 && profiledCount === 0 && !onboardingDismissed;
-
-  useEffect(() => {
-    if (!bulk.loading || !props.onRefresh) return;
-    const id = setInterval(() => props.onRefresh?.(), BULK_POLL_INTERVAL);
-    return () => clearInterval(id);
-  }, [bulk.loading, props.onRefresh]);
 
   const toggleExpand = useCallback((dsId: string) => {
     setExpanded((prev) => {
@@ -99,56 +89,6 @@ export default function CatalogHome(props: {
   }, [dsStubs, search, stateFilter]);
 
   const filteredTables = filtered.reduce((n, d) => n + d.tables.length, 0);
-  const allFilteredFqs = useMemo(() => filtered.flatMap((ds) => ds.tables.map((t) => t.fq_table)), [filtered]);
-
-  const toggleSelect = useCallback((fq: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(fq)) next.delete(fq);
-      else next.add(fq);
-      return next;
-    });
-  }, []);
-
-  const selectDataset = useCallback((ds: DatasetStub) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      const fqs = ds.tables.map((t) => t.fq_table);
-      const allIn = fqs.every((fq) => next.has(fq));
-      if (allIn) {
-        fqs.forEach((fq) => next.delete(fq));
-      } else {
-        fqs.forEach((fq) => next.add(fq));
-      }
-      return next;
-    });
-  }, []);
-
-  const selectAll = useCallback(() => {
-    setSelected((prev) => {
-      if (prev.size === allFilteredFqs.length) return new Set();
-      return new Set(allFilteredFqs);
-    });
-  }, [allFilteredFqs]);
-
-  const handleBulkProfile = useCallback(
-    (mode: BulkMode, force = false) => {
-      const tables = Array.from(selected);
-      if (tables.length === 0) return;
-      bulk.startBatch(tables, mode, force);
-      setSelected(new Set());
-    },
-    [selected, bulk],
-  );
-
-  const profileDataset = useCallback(
-    (ds: DatasetStub, mode: BulkMode, force = false) => {
-      const tables = ds.tables.map((t) => t.fq_table);
-      if (tables.length === 0) return;
-      bulk.startBatch(tables, mode, force);
-    },
-    [bulk],
-  );
 
   return (
     <div style={{ padding: "32px 40px" }}>
@@ -175,35 +115,20 @@ export default function CatalogHome(props: {
         {!loadingDatasets && totalDatasets > 0 && (
           <div style={{ display: "flex", gap: 6 }}>
             <button
-              onClick={selectAll}
+              onClick={() => { loadAll(); setShowWizard(true); }}
               style={{
-                background: "var(--wb-surface)",
-                border: "1px solid var(--wb-border)",
+                background: "var(--wb-primary)",
+                color: "#fff",
+                border: "1px solid var(--wb-primary)",
                 borderRadius: 6,
                 padding: "6px 14px",
                 fontSize: 12,
                 cursor: "pointer",
-                fontWeight: 500,
-              }}
-            >
-              {selected.size === allFilteredFqs.length && selected.size > 0 ? "Deselect all" : "Select all"}
-            </button>
-            <button
-              onClick={() => bulk.startBatch(allFilteredFqs, "both")}
-              disabled={bulk.loading || allFilteredFqs.length === 0}
-              style={{
-                background: "var(--wb-primary, #1a5c5e)",
-                color: "#fff",
-                border: "none",
-                borderRadius: 6,
-                padding: "6px 14px",
-                fontSize: 12,
-                cursor: bulk.loading ? "not-allowed" : "pointer",
                 fontWeight: 600,
-                opacity: bulk.loading ? 0.5 : 1,
+                fontFamily: "var(--wb-font)",
               }}
             >
-              Profile entire project
+              Profile Wizard
             </button>
           </div>
         )}
@@ -281,33 +206,6 @@ export default function CatalogHome(props: {
                   {ds.loaded ? `${ds.tables.length} ${ds.tables.length === 1 ? "table" : "tables"}` : ds.loading ? "loading..." : "click to load"}
                 </span>
               </h2>
-              {isExpanded && ds.loaded && (
-              <div style={{ display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => selectDataset(ds)}
-                  style={{ background: "none", border: "1px solid var(--wb-border)", borderRadius: 4, padding: "3px 10px", fontSize: 11, cursor: "pointer" }}
-                >
-                  {ds.tables.every((t: CatalogTable) => selected.has(t.fq_table)) ? "Deselect" : "Select all"}
-                </button>
-                <button
-                  onClick={() => profileDataset(ds, "both")}
-                  disabled={bulk.loading}
-                  style={{
-                    background: "var(--wb-primary, #1a5c5e)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 4,
-                    padding: "3px 10px",
-                    fontSize: 11,
-                    cursor: bulk.loading ? "not-allowed" : "pointer",
-                    fontWeight: 600,
-                    opacity: bulk.loading ? 0.5 : 1,
-                  }}
-                >
-                  Profile all
-                </button>
-              </div>
-              )}
             </div>
 
             {isExpanded && ds.loading && (
@@ -323,14 +221,6 @@ export default function CatalogHome(props: {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                 <thead>
                   <tr style={{ background: "var(--wb-surface)" }}>
-                    <th style={{ width: 36, padding: "10px 8px", borderBottom: "2px solid var(--wb-border)" }}>
-                      <input
-                        type="checkbox"
-                        checked={ds.tables.length > 0 && ds.tables.every((t) => selected.has(t.fq_table))}
-                        onChange={() => selectDataset(ds)}
-                        style={{ cursor: "pointer" }}
-                      />
-                    </th>
                     {["Table", "Rows", "Size", "Columns", "Profiling"].map((h) => (
                       <th
                         key={h}
@@ -359,20 +249,10 @@ export default function CatalogHome(props: {
                         style={{
                           borderBottom: "1px solid var(--wb-border)",
                           cursor: "pointer",
-                          background: selected.has(t.fq_table) ? "#f0f7f7" : "transparent",
                         }}
-                        onMouseEnter={(e) => { if (!selected.has(t.fq_table)) e.currentTarget.style.background = "#f8fafb"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = selected.has(t.fq_table) ? "#f0f7f7" : "transparent"; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "#f8fafb"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                       >
-                        <td style={{ padding: "10px 8px", verticalAlign: "top" }}>
-                          <input
-                            type="checkbox"
-                            checked={selected.has(t.fq_table)}
-                            onChange={() => toggleSelect(t.fq_table)}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{ cursor: "pointer" }}
-                          />
-                        </td>
                         <td style={{ padding: "10px 14px" }}>
                           <Link to={to} style={{ fontWeight: 600 }}>
                             {t.business_name || t.table_id}
@@ -433,28 +313,25 @@ export default function CatalogHome(props: {
         );
       })}
 
-      <BulkActionBar
-        count={selected.size}
-        onProfile={handleBulkProfile}
-        onClear={() => setSelected(new Set())}
-        disabled={bulk.loading}
-        hasExistingProfiles={
-          Array.from(selected).some((fq) => {
-            for (const ds of dsStubs) {
-              const tbl = ds.tables.find((t: any) => t.fq_table === fq);
-              if (tbl) return tbl.profiling?.technical === "available" || tbl.profiling?.semantic === "available";
-            }
-            return false;
-          })
-        }
-      />
-
-      <BulkProgressDrawer
-        status={bulk.status}
-        loading={bulk.loading}
-        error={bulk.error}
-        onDismiss={bulk.dismiss}
-      />
+      {showWizard && (
+        <ProfilingWizard
+          datasets={dsStubs.filter((ds) => ds.loaded).map((ds) => ({
+            dataset_id: ds.dataset_id,
+            tables: ds.tables.map((t) => ({
+              table_id: t.table_id,
+              fq_table: t.fq_table,
+              profiling: { technical: t.profiling.technical, semantic: t.profiling.semantic },
+            })),
+          }))}
+          loadingDatasets={dsStubs.some((ds) => !ds.loaded)}
+          project={props.config?.data_project || ""}
+          onClose={() => setShowWizard(false)}
+          onComplete={() => {
+            setShowWizard(false);
+            props.onRefresh?.();
+          }}
+        />
+      )}
     </div>
   );
 }

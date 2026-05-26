@@ -326,6 +326,7 @@ ALLOWED_SENSITIVITY_CODES = set(SENSITIVITY_CODES.keys()) | {""}
 # ── Terminology Registry ─────────────────────────────────────────────────────
 
 STANDARD_SYSTEMS = {
+    # Clinical
     "loinc": "http://loinc.org",
     "snomed": "http://snomed.info/sct",
     "icd10": "http://hl7.org/fhir/sid/icd-10",
@@ -334,6 +335,14 @@ STANDARD_SYSTEMS = {
     "rxnorm": "http://www.nlm.nih.gov/research/umls/rxnorm",
     "cpt": "http://www.ama-assn.org/go/cpt",
     "hcpcs": "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+    # Life Sciences
+    "chebi": "https://www.ebi.ac.uk/chebi",
+    "pubchem": "https://pubchem.ncbi.nlm.nih.gov",
+    "uniprot": "https://www.uniprot.org",
+    "go": "http://purl.obolibrary.org/obo/GO",
+    "bao": "https://www.ebi.ac.uk/bioassay-ontology",
+    "ncbi_gene": "http://www.ncbi.nlm.nih.gov/gene",
+    # Custom
     "custom": "urn:verily:custom",
 }
 
