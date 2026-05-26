@@ -6,7 +6,7 @@ import { ProfilingActions } from "../components/ProfilingActions";
 import { SemProfileView } from "../components/SemProfile";
 import { TechProfileView } from "../components/TechProfile";
 import { HelpIcon } from "../components/HelpSystem";
-import { Badge, Card, Tabs } from "../components/rds";
+import { Badge, Tabs } from "../components/rds";
 import { useChartSuggestions } from "../hooks/useCharts";
 import { usePreview } from "../hooks/usePreview";
 import { useProfileStatus, useSemProfile, useTechProfile } from "../hooks/useProfiles";
@@ -71,59 +71,15 @@ export default function TablePage() {
         </div>
       ) : null}
 
-      {/* Table-level summary card */}
+      {/* Table-level summary — compact inline stats + collapsible detail */}
       {(tableDefinition || tech || granularity || pk) ? (
-        <Card style={{ marginTop: 16 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {tableDefinition ? (
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--wb-muted)", marginBottom: 4 }}>
-                  Description
-                </div>
-                <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--wb-text)" }}>{tableDefinition}</div>
-              </div>
-            ) : null}
-
-            {granularity ? (
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--wb-muted)", marginBottom: 4 }}>
-                  Granularity
-                </div>
-                <div style={{ fontSize: 14, color: "var(--wb-text)" }}>{granularity}</div>
-              </div>
-            ) : null}
-
-            {pk && pk.columns?.length > 0 && pk.pk_type !== "none" ? (
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--wb-muted)", marginBottom: 4 }}>
-                  Primary Key
-                </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                  {pk.columns.map((col) => (
-                    <Badge key={col} tone="neutral">{col}</Badge>
-                  ))}
-                  <span style={{ fontSize: 12, color: "var(--wb-muted)" }}>
-                    ({pk.pk_type}, {pk.confidence} confidence)
-                  </span>
-                </div>
-              </div>
-            ) : null}
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 24px", alignItems: "flex-start" }}>
-              {tech ? (
-                <>
-                  <Stat label="Rows" value={tech.row_count != null ? tech.row_count.toLocaleString() : "—"} />
-                  <Stat label="Columns" value={tech.columns.length} />
-                  <Stat label="Profiled" value={tech.profiled_at ? new Date(tech.profiled_at).toLocaleDateString() : "—"} />
-                  <Stat label="Validation" value={<Badge tone={tech.validation.status === "pass" ? "success" : "warn"}>{tech.validation.status}</Badge>} />
-                </>
-              ) : null}
-              {sem ? (
-                <Stat label="Model" value={sem.model_used || "—"} />
-              ) : null}
-            </div>
-          </div>
-        </Card>
+        <TableSummary
+          tableDefinition={tableDefinition}
+          granularity={granularity}
+          pk={pk}
+          tech={tech}
+          sem={sem}
+        />
       ) : null}
 
       {/* Tabs */}
@@ -186,6 +142,57 @@ function Stat(props: { label: string; value: React.ReactNode }) {
         {props.label}
       </div>
       <div style={{ fontSize: 14, fontWeight: 500, marginTop: 2 }}>{props.value}</div>
+    </div>
+  );
+}
+
+function TableSummary(props: {
+  tableDefinition?: string | null;
+  granularity?: string | null;
+  pk?: { columns: string[]; pk_type: string; confidence: string } | null;
+  tech?: { row_count: number | null; columns: { length: number }; profiled_at: string; validation: { status: string } } | null;
+  sem?: { model_used: string } | null;
+}) {
+  const { tableDefinition, granularity, pk, tech, sem } = props;
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {/* Always-visible stats row */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 24px", alignItems: "center", marginBottom: 4 }}>
+        {tech ? (
+          <>
+            <Stat label="Rows" value={tech.row_count != null ? tech.row_count.toLocaleString() : "—"} />
+            <Stat label="Columns" value={tech.columns.length} />
+            <Stat label="Profiled" value={tech.profiled_at ? new Date(tech.profiled_at).toLocaleDateString() : "—"} />
+            <Stat label="Validation" value={<Badge tone={tech.validation.status === "pass" ? "success" : "warn"}>{tech.validation.status}</Badge>} />
+          </>
+        ) : null}
+        {sem ? <Stat label="Model" value={sem.model_used || "—"} /> : null}
+        {pk && pk.columns?.length > 0 && pk.pk_type !== "none" ? (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--wb-muted)" }}>PK</div>
+            <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 2 }}>
+              {pk.columns.map((col) => <Badge key={col} tone="neutral">{col}</Badge>)}
+            </div>
+          </div>
+        ) : null}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--wb-primary)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0 }}
+        >
+          {expanded ? "Hide details" : "Show details"}
+        </button>
+      </div>
+
+      {/* Collapsible description + granularity */}
+      {expanded && (tableDefinition || granularity) ? (
+        <div style={{ padding: "10px 0", fontSize: 13, color: "var(--wb-text)", lineHeight: 1.6, borderTop: "1px solid var(--wb-border)", marginTop: 4 }}>
+          {tableDefinition}
+          {tableDefinition && granularity ? " " : null}
+          {granularity ? <span style={{ color: "var(--wb-muted)" }}>Granularity: {granularity}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

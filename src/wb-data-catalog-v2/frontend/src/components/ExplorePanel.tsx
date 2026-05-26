@@ -46,19 +46,7 @@ function buildFields(tech: TechProfile): IMutField[] {
 
 const CHART_COLORS = ["#0f7b6c", "#278bac", "#1a7f37", "#9a6700", "#8250df", "#cf222e"];
 
-function buildChartRows(tech: TechProfile, sug: ChartSuggestion) {
-  const names = sug.columns.filter(Boolean);
-  if (!names.length) return [];
-
-  if (names.length > 1 || sug.title.toLowerCase().includes("null")) {
-    return names.map((n) => {
-      const c = tech.columns.find((x) => x.name === n);
-      return { name: n, value: c?.null_percent ?? 0 };
-    });
-  }
-
-  const col = tech.columns.find((c) => c.name === names[0]);
-  if (!col) return [];
+function buildRowsForColumn(col: TechColumn): { name: string; value: number }[] {
   if (col.value_counts && Object.keys(col.value_counts).length) {
     return Object.entries(col.value_counts)
       .sort((a, b) => b[1] - a[1])
@@ -68,6 +56,51 @@ function buildChartRows(tech: TechProfile, sug: ChartSuggestion) {
   if ((col.top_values || []).length) {
     return (col.top_values || []).slice(0, 12).map((name) => ({ name: String(name).slice(0, 30), value: 1 }));
   }
+  return [];
+}
+
+function buildChartRows(tech: TechProfile, sug: ChartSuggestion) {
+  const names = sug.columns.filter(Boolean);
+  if (!names.length) return [];
+  const titleLower = sug.title.toLowerCase();
+
+  // Null-rate comparison: explicitly about nulls
+  if (titleLower.includes("null")) {
+    return names.map((n) => {
+      const c = tech.columns.find((x) => x.name === n);
+      return { name: n, value: c?.null_percent ?? 0 };
+    });
+  }
+
+  // Distinct-count comparison across columns
+  if (names.length > 1 && titleLower.includes("distinct")) {
+    return names.map((n) => {
+      const c = tech.columns.find((x) => x.name === n);
+      return { name: n, value: c?.distinct_count ?? 0 };
+    });
+  }
+
+  // Multi-column: try the first column that has value_counts or top_values
+  if (names.length > 1) {
+    for (const n of names) {
+      const col = tech.columns.find((c) => c.name === n);
+      if (col) {
+        const rows = buildRowsForColumn(col);
+        if (rows.length > 0) return rows;
+      }
+    }
+    // Fallback: show distinct counts per column
+    return names.map((n) => {
+      const c = tech.columns.find((x) => x.name === n);
+      return { name: n.replace(/_/g, " "), value: c?.distinct_count ?? 0 };
+    });
+  }
+
+  // Single column
+  const col = tech.columns.find((c) => c.name === names[0]);
+  if (!col) return [];
+  const rows = buildRowsForColumn(col);
+  if (rows.length > 0) return rows;
   return [{ name: col.name, value: col.distinct_count ?? 0 }];
 }
 
@@ -78,27 +111,25 @@ function deriveAxisLabels(tech: TechProfile, sug: ChartSuggestion): { xLabel: st
   if (titleLower.includes("null")) {
     return { xLabel: "Column", yLabel: "Null %" };
   }
+  if (titleLower.includes("distinct")) {
+    return { xLabel: "Column", yLabel: "Distinct values" };
+  }
 
-  if (names.length === 1) {
-    const col = tech.columns.find((c) => c.name === names[0]);
-    const colName = names[0].replace(/_/g, " ");
-
-    if (col?.value_counts && Object.keys(col.value_counts).length) {
+  // Find the column that's actually being charted (first with value_counts)
+  for (const n of names) {
+    const col = tech.columns.find((c) => c.name === n);
+    if (!col) continue;
+    const colName = n.replace(/_/g, " ");
+    if (col.value_counts && Object.keys(col.value_counts).length) {
       return { xLabel: colName, yLabel: "Count (rows)" };
     }
-    if (col?.numeric_stats?.min != null) {
+    if (col.numeric_stats?.min != null) {
       return { xLabel: colName, yLabel: "Value" };
     }
-    return { xLabel: colName, yLabel: "Count" };
   }
 
-  if (names.length > 1) {
-    if (titleLower.includes("distinct")) return { xLabel: "Column", yLabel: "Distinct values" };
-    if (titleLower.includes("null")) return { xLabel: "Column", yLabel: "Null %" };
-    return { xLabel: "Column", yLabel: "Value" };
-  }
-
-  return { xLabel: "", yLabel: "" };
+  if (names.length > 1) return { xLabel: "Column", yLabel: "Value" };
+  return { xLabel: names[0]?.replace(/_/g, " ") || "", yLabel: "Count" };
 }
 
 function InsightCharts(props: {
@@ -216,6 +247,97 @@ function GWExplorer(props: {
   );
 }
 
+// ── Data Quality Summary ─────────────────────────────────────────────────────
+
+interface QualitySignal {
+  severity: "warn" | "info";
+  text: string;
+}
+
+function DataQualitySummary(props: { tech: TechProfile }) {
+  const signals = useMemo(() => {
+    const out: QualitySignal[] = [];
+    const rowCount = props.tech.row_count || 1;
+    const covered = new Set<string>();
+
+    for (const c of props.tech.columns) {
+      if ((c.null_percent ?? 0) > 50) {
+        out.push({ severity: "warn", text: `${c.name} is ${c.null_percent}% null — most values are missing` });
+        covered.add(c.name);
+      }
+    }
+
+    for (const c of props.tech.columns) {
+      if (c.distinct_count === 1) {
+        const val = c.top_values?.[0];
+        out.push({ severity: "info", text: `${c.name} has a single constant value${val ? ` ("${val}")` : ""} across all rows` });
+        covered.add(c.name);
+      }
+    }
+
+    for (const c of props.tech.columns) {
+      if (c.distinct_count != null && c.distinct_count >= rowCount * 0.99 && rowCount > 1 && !covered.has(c.name)) {
+        out.push({ severity: "info", text: `${c.name} is likely a unique identifier (${c.distinct_count.toLocaleString()} distinct values in ${rowCount.toLocaleString()} rows)` });
+        covered.add(c.name);
+      }
+    }
+
+    for (const c of props.tech.columns) {
+      const isString = !c.numeric_stats;
+      if (isString && c.distinct_count != null && c.distinct_count > rowCount * 0.8 && c.distinct_count < rowCount * 0.99 && rowCount > 10 && !covered.has(c.name)) {
+        out.push({ severity: "info", text: `${c.name} has high cardinality (${c.distinct_count.toLocaleString()} distinct) — may be an identifier, not a category` });
+      }
+    }
+
+    // Only show anomalies that aren't already covered by the checks above
+    const SKIP_ANOMALIES = new Set(["unique_key_candidate", "single_value", "high_null_rate"]);
+    for (const c of props.tech.columns) {
+      if (c.anomalies && c.anomalies.length > 0 && !covered.has(c.name)) {
+        for (const a of c.anomalies) {
+          if (SKIP_ANOMALIES.has(a)) continue;
+          out.push({ severity: "warn", text: `${c.name}: ${a.replace(/_/g, " ")}` });
+        }
+      }
+    }
+
+    return out;
+  }, [props.tech]);
+
+  const [expanded, setExpanded] = useState(false);
+  const MAX_COLLAPSED = 5;
+  const visible = expanded ? signals : signals.slice(0, MAX_COLLAPSED);
+
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--wb-muted)", marginBottom: 8 }}>
+        Data Quality Highlights
+      </div>
+      {signals.length === 0 ? (
+        <div style={{ fontSize: 13, color: "var(--wb-success)" }}>No data quality concerns detected.</div>
+      ) : (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {visible.map((s, i) => (
+              <div key={i} style={{ fontSize: 13, color: s.severity === "warn" ? "var(--wb-danger, #cf222e)" : "var(--wb-text)", display: "flex", gap: 6, alignItems: "flex-start" }}>
+                <span style={{ flexShrink: 0 }}>{s.severity === "warn" ? "!" : "-"}</span>
+                <span>{s.text}</span>
+              </div>
+            ))}
+          </div>
+          {signals.length > MAX_COLLAPSED && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              style={{ marginTop: 6, background: "none", border: "none", color: "var(--wb-primary)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0 }}
+            >
+              {expanded ? "Show less" : `Show all ${signals.length} signals`}
+            </button>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
 // ── Key Insights panel (AI-suggested charts) ────────────────────────────────
 
 export function KeyInsightsPanel(props: {
@@ -234,6 +356,7 @@ export function KeyInsightsPanel(props: {
 
   return (
     <div style={{ marginTop: 8 }}>
+      <DataQualitySummary tech={props.technical} />
       <InsightCharts
         tech={props.technical}
         suggestions={props.suggestions}

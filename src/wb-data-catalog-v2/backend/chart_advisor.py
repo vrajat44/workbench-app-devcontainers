@@ -23,6 +23,12 @@ Rules:
 - Prefer bar or pie for low-cardinality string columns with top_values / value_counts.
 - Prefer histogram or bar for null_percent across columns (use synthetic label "__null_rate__" only if you suggest a single composed chart — otherwise pick real columns).
 - Use only column names that exist in the input.
+- Do NOT suggest charts for primary key columns or administrative identifiers (measurement_method = "administrative").
+- For lab-measured or device-collected columns, prefer distribution charts (histogram).
+- For categorical columns with fewer than 10 distinct values, prefer pie or bar.
+- For pairs of numeric measurement columns, consider scatter plots to show correlations.
+- Use the semantic_domain to tailor suggestions (e.g. drug discovery → SAR plots, clinical → outcome distributions).
+- Skip columns with very high cardinality (distinct_count > 80% of row_count) unless they are numeric measurements.
 - If semantic profile includes sensitivity, you may suggest one chart grouping PHI vs PII counts per column (still list real column names in "columns").
 """
 
@@ -46,14 +52,23 @@ def _summarize_profiles(technical: dict[str, Any], semantic: Optional[dict[str, 
         if c.get("pattern"):
             parts.append(f"pattern={c.get('pattern')}")
         lines.append(" | ".join(str(p) for p in parts))
-    if semantic and semantic.get("columns"):
-        lines.append("")
-        lines.append("Columns (semantic):")
-        for c in semantic.get("columns", [])[:80]:
-            lines.append(
-                f"{c.get('name')}: sens={c.get('sensitivity')} conf={c.get('confidence')} "
-                f"def={str(c.get('definition', ''))[:120]}"
-            )
+    if semantic:
+        domain = semantic.get("semantic_domain", {})
+        if domain:
+            lines.append(f"\nDomain: {domain.get('primary', '')} / {domain.get('sub_domain', '')}")
+        if semantic.get("granularity"):
+            lines.append(f"Granularity: {semantic['granularity']}")
+        pk = semantic.get("primary_key", {})
+        if pk.get("columns"):
+            lines.append(f"Primary key: {pk['columns']} ({pk.get('pk_type', '')})")
+        if semantic.get("columns"):
+            lines.append("\nColumns (semantic):")
+            for c in semantic.get("columns", [])[:80]:
+                lines.append(
+                    f"{c.get('name')}: sens={c.get('sensitivity')} conf={c.get('confidence')} "
+                    f"unit={c.get('unit_of_measure', '')} method={c.get('measurement_method', '')} "
+                    f"def={str(c.get('definition', ''))[:120]}"
+                )
     return "\n".join(lines)
 
 
