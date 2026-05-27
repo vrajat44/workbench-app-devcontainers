@@ -11,7 +11,25 @@ import type {
 } from "../types/cohort";
 import { Badge, Button, Card, Stack, Tabs } from "../components/rds";
 
-const OPERATORS = ["=", "!=", ">", ">=", "<", "<="];
+const STRING_OPS = ["=", "!=", "IN", "NOT IN", "LIKE", "IS NULL", "IS NOT NULL"];
+const NUMERIC_OPS = ["=", "!=", ">", ">=", "<", "<=", "IN", "NOT IN", "BETWEEN", "IS NULL", "IS NOT NULL"];
+const ALL_OPS = ["=", "!=", ">", ">=", "<", "<=", "IN", "NOT IN", "LIKE", "BETWEEN", "IS NULL", "IS NOT NULL"];
+
+function opsForType(dataType: string): string[] {
+  const t = (dataType || "").toUpperCase();
+  if (t.includes("INT") || t.includes("FLOAT") || t.includes("NUMERIC") || t.includes("DECIMAL")) return NUMERIC_OPS;
+  if (t === "STRING" || t === "BYTES") return STRING_OPS;
+  return ALL_OPS;
+}
+
+function parseErrorMessage(raw: string): string {
+  let msg = raw;
+  const match = msg.match(/"detail"\s*:\s*"([^"]+)"/);
+  if (match) msg = match[1];
+  msg = msg.replace(/^Error:\s*/i, "");
+  msg = msg.replace(/\b[\w-]+\.(\w+\.\w+)\b/g, "$1");
+  return msg;
+}
 
 const inputStyle: React.CSSProperties = {
   padding: "6px 10px",
@@ -144,32 +162,105 @@ function FilterRow(props: {
   onRemove: () => void;
 }) {
   const dim = props.table.dimensions.find((d) => d.column === props.filter.column);
+  const ops = opsForType(dim?.data_type || "STRING");
+  const op = props.filter.operator;
+  const noValue = op === "IS NULL" || op === "IS NOT NULL";
+  const isIn = op === "IN" || op === "NOT IN";
+  const isBetween = op === "BETWEEN";
+  const isLike = op === "LIKE";
   const hasValues = dim && dim.values.length > 0 && dim.values.length <= 50;
+
+  const selectedSet = new Set((props.filter.value || "").split(",").map((v) => v.trim()).filter(Boolean));
+
+  const toggleInValue = (v: string) => {
+    const next = new Set(selectedSet);
+    if (next.has(v)) next.delete(v); else next.add(v);
+    props.onChange({ ...props.filter, value: Array.from(next).join(", ") });
+  };
+
+  const [betweenLo, betweenHi] = (() => {
+    const parts = (props.filter.value || "").split(",");
+    return [parts[0]?.trim() || "", parts[1]?.trim() || ""];
+  })();
 
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
       <select
         value={props.filter.column}
-        onChange={(e) => props.onChange({ ...props.filter, column: e.target.value, value: "" })}
-        style={{ ...selectStyle, minWidth: 180 }}
+        onChange={(e) => props.onChange({ ...props.filter, column: e.target.value, value: "", operator: "=" })}
+        style={{ ...selectStyle, minWidth: 200 }}
       >
         <option value="">Select dimension...</option>
         {props.table.dimensions.map((d) => (
-          <option key={d.column} value={d.column}>{d.column}</option>
+          <option key={d.column} value={d.column}>
+            {d.column}{d.definition ? ` — ${d.definition.slice(0, 50)}` : ""}
+          </option>
         ))}
       </select>
+
+      {dim?.data_type && (
+        <span style={{ fontSize: 10, fontFamily: "monospace", padding: "2px 6px", background: "#f0f0f0", borderRadius: 3, color: "#666" }}>
+          {dim.data_type}
+        </span>
+      )}
 
       <select
-        value={props.filter.operator}
-        onChange={(e) => props.onChange({ ...props.filter, operator: e.target.value })}
-        style={{ ...selectStyle, width: 60 }}
+        value={op}
+        onChange={(e) => props.onChange({ ...props.filter, operator: e.target.value, value: "" })}
+        style={{ ...selectStyle, width: 90 }}
       >
-        {OPERATORS.map((op) => (
-          <option key={op} value={op}>{op}</option>
+        {ops.map((o) => (
+          <option key={o} value={o}>{o}</option>
         ))}
       </select>
 
-      {hasValues ? (
+      {noValue ? null : isBetween ? (
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <input
+            value={betweenLo}
+            onChange={(e) => props.onChange({ ...props.filter, value: `${e.target.value},${betweenHi}` })}
+            placeholder="min"
+            style={{ ...inputStyle, width: 80 }}
+          />
+          <span style={{ fontSize: 12, color: "var(--wb-muted)" }}>and</span>
+          <input
+            value={betweenHi}
+            onChange={(e) => props.onChange({ ...props.filter, value: `${betweenLo},${e.target.value}` })}
+            placeholder="max"
+            style={{ ...inputStyle, width: 80 }}
+          />
+        </div>
+      ) : isIn && hasValues ? (
+        <div style={{ position: "relative" }}>
+          <div
+            style={{
+              ...inputStyle, minWidth: 180, maxHeight: 120, overflowY: "auto",
+              display: "flex", flexWrap: "wrap", gap: 4, padding: 6,
+            }}
+          >
+            {dim.values.map((v) => (
+              <label key={v} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 12, cursor: "pointer", padding: "1px 4px", borderRadius: 3, background: selectedSet.has(v) ? "#e0f2fe" : "transparent" }}>
+                <input type="checkbox" checked={selectedSet.has(v)} onChange={() => toggleInValue(v)} style={{ margin: 0 }} />
+                {v}
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : isIn ? (
+        <input
+          value={props.filter.value}
+          onChange={(e) => props.onChange({ ...props.filter, value: e.target.value })}
+          placeholder="val1, val2, val3"
+          style={{ ...inputStyle, minWidth: 160 }}
+        />
+      ) : isLike ? (
+        <input
+          value={props.filter.value}
+          onChange={(e) => props.onChange({ ...props.filter, value: e.target.value })}
+          placeholder="% = wildcard"
+          style={{ ...inputStyle, minWidth: 140 }}
+        />
+      ) : hasValues ? (
         <select
           value={props.filter.value}
           onChange={(e) => props.onChange({ ...props.filter, value: e.target.value })}
@@ -189,15 +280,10 @@ function FilterRow(props: {
         />
       )}
 
-      {dim?.definition && (
-        <span style={{ fontSize: 11, color: "var(--wb-muted)", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {dim.definition}
-        </span>
-      )}
-
       <button
         onClick={props.onRemove}
         style={{ background: "none", border: "none", color: "var(--wb-danger)", cursor: "pointer", fontSize: 16, padding: "0 4px" }}
+        title="Remove filter"
       >
         x
       </button>
@@ -328,9 +414,13 @@ function TableFiltersTab() {
   const updateJoin = (i: number, j: CohortJoin) => setJoins((prev) => { const n = [...prev]; n[i] = j; return n; });
   const removeJoin = (i: number) => setJoins((prev) => prev.filter((_, idx) => idx !== i));
 
-  const validFilters = filters.filter((f) => f.column && f.value);
+  const validFilters = filters.filter((f) => {
+    if (!f.column) return false;
+    if (f.operator === "IS NULL" || f.operator === "IS NOT NULL") return true;
+    return !!f.value;
+  });
   const validJoins = joins.filter((j) => j.target_table);
-  const canRun = baseTable && baseTable.entity_anchor && validFilters.length > 0;
+  const canRun = baseTable && validFilters.length > 0;
 
   const execute = useCallback(async (mode: "count" | "preview") => {
     if (!baseTable) return;
@@ -371,7 +461,21 @@ function TableFiltersTab() {
       {loading && <p style={{ color: "var(--wb-muted)" }}>Loading dimensions...</p>}
       {err && <p style={{ color: "var(--wb-danger)" }}>{err}</p>}
 
-      {data && (
+      {!loading && data && data.tables.length === 0 && (
+        <Card>
+          <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--wb-muted)" }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: "var(--wb-text)" }}>No cohort dimensions available</div>
+            <p style={{ marginBottom: 16, fontSize: 13 }}>
+              Run semantic profiling on your tables to generate filterable dimensions for cohort building.
+            </p>
+            <a href="/" style={{ color: "var(--wb-primary)", fontWeight: 600, fontSize: 13 }}>
+              Open Profile Wizard
+            </a>
+          </div>
+        </Card>
+      )}
+
+      {data && data.tables.length > 0 && (
         <Stack gap={16}>
           <Card>
             <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
@@ -387,7 +491,7 @@ function TableFiltersTab() {
                   <option value="">Select a table...</option>
                   {allTables.map((t) => (
                     <option key={t.fq_table} value={t.fq_table}>
-                      {t.business_name || shortTable(t.fq_table)} ({t.dimensions.length} dimensions)
+                      {t.business_name || shortTable(t.fq_table)} ({t.dimensions.length} dims{t.entity_anchor ? "" : ", filters only"})
                     </option>
                   ))}
                 </select>
@@ -397,7 +501,10 @@ function TableFiltersTab() {
                 <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 11, color: "var(--wb-muted)", textTransform: "uppercase", fontWeight: 600 }}>Entity</div>
-                    <Badge tone="info">{baseTable.entity_anchor}</Badge>
+                    {baseTable.entity_anchor
+                      ? <Badge tone="info">{baseTable.entity_anchor}</Badge>
+                      : <span style={{ fontSize: 12, color: "var(--wb-muted)" }}>— (filters only)</span>
+                    }
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: "var(--wb-muted)", textTransform: "uppercase", fontWeight: 600 }}>Type</div>
@@ -435,7 +542,7 @@ function TableFiltersTab() {
             </Card>
           )}
 
-          {baseTable && baseTable.joinable_tables.length > 0 && (
+          {baseTable && baseTable.entity_anchor && baseTable.joinable_tables.length > 0 && (
             <Card title="Joins">
               <Stack gap={12}>
                 {joins.map((j, i) => (
@@ -471,7 +578,11 @@ function TableFiltersTab() {
               >
                 Preview Rows
               </Button>
-              {runErr && <span style={{ fontSize: 13, color: "var(--wb-danger)" }}>{runErr}</span>}
+              {runErr && (
+                <div style={{ padding: "10px 14px", background: "#fef2f2", borderLeft: "3px solid var(--wb-danger)", borderRadius: "0 var(--wb-radius) var(--wb-radius) 0", fontSize: 13, color: "#991b1b" }}>
+                  {parseErrorMessage(runErr)}
+                </div>
+              )}
             </div>
           )}
 
@@ -621,7 +732,7 @@ function TermFilterRowUI(props: {
         style={{ ...selectStyle, width: 60, fontSize: 12 }}
       >
         <option value="">any</option>
-        {OPERATORS.map((op) => (
+        {ALL_OPS.map((op) => (
           <option key={op} value={op}>{op}</option>
         ))}
       </select>
@@ -832,7 +943,11 @@ function TerminologyTab() {
             <Button onClick={() => execute("preview")} disabled={termFilters.length === 0 || running}>
               Preview Rows
             </Button>
-            {runErr && <span style={{ fontSize: 13, color: "var(--wb-danger)" }}>{runErr}</span>}
+            {runErr && (
+                <div style={{ padding: "10px 14px", background: "#fef2f2", borderLeft: "3px solid var(--wb-danger)", borderRadius: "0 var(--wb-radius) var(--wb-radius) 0", fontSize: 13, color: "#991b1b" }}>
+                  {parseErrorMessage(runErr)}
+                </div>
+              )}
           </div>
 
           {resultInfo && (
@@ -975,7 +1090,11 @@ function NaturalLanguageTab() {
             {previewLoading ? "Loading..." : "Preview Rows"}
           </Button>
         )}
-        {runErr && <span style={{ fontSize: 13, color: "var(--wb-danger)" }}>{runErr}</span>}
+        {runErr && (
+                <div style={{ padding: "10px 14px", background: "#fef2f2", borderLeft: "3px solid var(--wb-danger)", borderRadius: "0 var(--wb-radius) var(--wb-radius) 0", fontSize: 13, color: "#991b1b" }}>
+                  {parseErrorMessage(runErr)}
+                </div>
+              )}
       </div>
 
       {nlResult && (

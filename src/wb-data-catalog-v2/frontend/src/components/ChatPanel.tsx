@@ -147,7 +147,7 @@ function renderMarkdown(text: string): string {
 /* ── Main panel ─────────────────────────────────────────────────────────── */
 
 export default function ChatPanel(props: { open: boolean; onClose: () => void }) {
-  const { messages, loading, error, mode, sendMessage, clearChat, toggleMode } = useChat();
+  const { messages, loading, error, mode, streamingStatus, sendMessage, stopStreaming, clearChat, toggleMode } = useChat();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -178,6 +178,7 @@ export default function ChatPanel(props: { open: boolean; onClose: () => void })
 
   return (
     <>
+      <style>{`@keyframes pulse { 0%,100% { opacity:.3 } 50% { opacity:1 } }`}</style>
       <div style={overlay} onClick={props.onClose} />
       <div style={panel}>
         {/* Header */}
@@ -232,9 +233,15 @@ export default function ChatPanel(props: { open: boolean; onClose: () => void })
           {messages.map((m, i) => (
             <MessageBubble key={i} msg={m} />
           ))}
-          {loading && (
+          {loading && streamingStatus && (
+            <div style={{ alignSelf: "flex-start", color: "#888", fontSize: 12, padding: "4px 10px", fontStyle: "italic", display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#1a5c5e", animation: "pulse 1.2s infinite" }} />
+              {streamingStatus}
+            </div>
+          )}
+          {loading && !streamingStatus && messages.length > 0 && messages[messages.length - 1].content === "" && (
             <div style={{ alignSelf: "flex-start", color: "#999", fontSize: 13, padding: "4px 10px" }}>
-              Thinking...
+              Connecting...
             </div>
           )}
           {error && !loading && (
@@ -263,23 +270,41 @@ export default function ChatPanel(props: { open: boolean; onClose: () => void })
             }}
             disabled={loading}
           />
-          <button
-            onClick={handleSend}
-            disabled={loading || !input.trim()}
-            style={{
-              background: "var(--wb-primary, #1a5c5e)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              padding: "8px 16px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: loading || !input.trim() ? "not-allowed" : "pointer",
-              opacity: loading || !input.trim() ? 0.5 : 1,
-            }}
-          >
-            Send
-          </button>
+          {loading ? (
+            <button
+              onClick={stopStreaming}
+              style={{
+                background: "#c00",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px 16px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              style={{
+                background: "var(--wb-primary, #1a5c5e)",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px 16px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: !input.trim() ? "not-allowed" : "pointer",
+                opacity: !input.trim() ? 0.5 : 1,
+              }}
+            >
+              Send
+            </button>
+          )}
         </div>
       </div>
     </>

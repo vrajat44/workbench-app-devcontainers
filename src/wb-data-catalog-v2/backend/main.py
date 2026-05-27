@@ -481,6 +481,8 @@ def api_update_settings(body: dict[str, Any]):
         GEMINI_LOCATION = val if val and val != "auto" else None
     from verily_profiler.llm import set_model_settings
     set_model_settings(GEMINI_MODEL, GEMINI_LOCATION)
+    from chat_handler import invalidate_context_cache
+    invalidate_context_cache()
 
     bucket_status: dict[str, Any] = {}
     if BILLING_PROJECT and PROFILE_BUCKET:
@@ -1187,7 +1189,7 @@ def api_column_values(table: str, column: str):
     return response
 
 
-ALLOWED_OPS = {"=", "!=", ">", ">=", "<", "<="}
+ALLOWED_OPS = {"=", "!=", ">", ">=", "<", "<=", "LIKE", "IN", "NOT IN", "IS NULL", "IS NOT NULL", "BETWEEN"}
 _IDENTIFIER_RE = None
 _FQ_TABLE_RE = None
 
@@ -1211,25 +1213,65 @@ def _safe_ident(name: str) -> str:
     return name
 
 
-def _build_where(filters: list[dict], alias: str) -> tuple[list[str], list[Any]]:
-    clauses = []
-    params = []
+def _parse_val(val: str):
+    try:
+        v = float(val)
+        return int(v) if v == int(v) else v
+    except (ValueError, TypeError):
+        return val
+
+
+def _build_where(filters: list[dict], alias: str) -> tuple[list[str], list[dict]]:
+    clauses: list[str] = []
+    params: list[dict] = []
     for i, f in enumerate(filters):
         col = _safe_ident(f["column"])
-        op = f.get("operator", "=")
+        op = f.get("operator", "=").strip()
         if op not in ALLOWED_OPS:
             raise HTTPException(400, f"Invalid operator: {op}")
+        val = str(f.get("value", "")).strip()
         param_name = f"p_{alias}_{i}"
-        clauses.append(f"{alias}.{col} {op} @{param_name}")
-        val = f["value"]
-        try:
-            val = float(val)
-            if val == int(val):
-                val = int(val)
-        except (ValueError, TypeError):
-            pass
-        params.append((param_name, val))
+
+        if op in ("IS NULL", "IS NOT NULL"):
+            clauses.append(f"{alias}.{col} {op}")
+        elif op in ("IN", "NOT IN"):
+            items = [v.strip() for v in val.split(",") if v.strip()]
+            if not items:
+                continue
+            neg = "NOT " if op == "NOT IN" else ""
+            clauses.append(f"{alias}.{col} {neg}IN UNNEST(@{param_name})")
+            params.append({"name": param_name, "value": items, "type": "array"})
+        elif op == "LIKE":
+            clauses.append(f"{alias}.{col} LIKE @{param_name}")
+            params.append({"name": param_name, "value": val, "type": "scalar"})
+        elif op == "BETWEEN":
+            parts = [v.strip() for v in val.split(",")]
+            if len(parts) != 2:
+                raise HTTPException(400, f"BETWEEN requires two comma-separated values, got: {val}")
+            clauses.append(f"{alias}.{col} BETWEEN @{param_name}_lo AND @{param_name}_hi")
+            params.append({"name": f"{param_name}_lo", "value": _parse_val(parts[0]), "type": "scalar"})
+            params.append({"name": f"{param_name}_hi", "value": _parse_val(parts[1]), "type": "scalar"})
+        else:
+            clauses.append(f"{alias}.{col} {op} @{param_name}")
+            params.append({"name": param_name, "value": _parse_val(val), "type": "scalar"})
     return clauses, params
+
+
+def _make_bq_params(params: list[dict]):
+    from google.cloud import bigquery as _bq
+    bq_params = []
+    for p in params:
+        if p["type"] == "array":
+            bq_params.append(_bq.ArrayQueryParameter(p["name"], "STRING", p["value"]))
+        else:
+            val = p["value"]
+            if isinstance(val, float):
+                bq_params.append(_bq.ScalarQueryParameter(p["name"], "FLOAT64", val))
+            elif isinstance(val, int):
+                bq_params.append(_bq.ScalarQueryParameter(p["name"], "INT64", val))
+            else:
+                bq_params.append(_bq.ScalarQueryParameter(p["name"], "STRING", str(val)))
+    return bq_params
 
 
 @app.post("/api/cohorts/execute")
@@ -1241,7 +1283,8 @@ def api_cohort_execute(body: dict[str, Any]):
     from bq_preview import _serialize_cell
 
     base = body.get("base_table", "")
-    entity_col = _safe_ident(body.get("entity_column", ""))
+    entity_col_raw = body.get("entity_column", "")
+    entity_col = _safe_ident(entity_col_raw) if entity_col_raw else ""
     filters = body.get("filters") or []
     joins = body.get("joins") or []
     mode = body.get("mode", "count")
@@ -1250,7 +1293,7 @@ def api_cohort_execute(body: dict[str, Any]):
     base_fq = f"`{p}.{d}.{t}`"
 
     all_clauses: list[str] = []
-    all_params: list[tuple[str, Any]] = []
+    all_params: list[dict] = []
 
     base_clauses, base_params = _build_where(filters, "t0")
     all_clauses.extend(base_clauses)
@@ -1260,7 +1303,7 @@ def api_cohort_execute(body: dict[str, Any]):
     for ji, j in enumerate(joins):
         jt = j.get("target_table", "")
         jp, jd, jt_name = _safe_fq_table(jt)
-        join_col = _safe_ident(j.get("join_column", entity_col))
+        join_col = _safe_ident(j.get("join_column", entity_col or ""))
         alias = f"j{ji}"
         join_frags.append(
             f"JOIN `{jp}.{jd}.{jt_name}` {alias} ON t0.{join_col} = {alias}.{join_col}"
@@ -1274,22 +1317,19 @@ def api_cohort_execute(body: dict[str, Any]):
 
     if mode == "preview":
         sql = f"SELECT t0.*\nFROM {base_fq} t0\n{joins_sql}{where}\nLIMIT 200"
-    else:
+    elif entity_col:
         sql = f"SELECT COUNT(DISTINCT t0.{entity_col}) AS cohort_count\nFROM {base_fq} t0\n{joins_sql}{where}"
+    else:
+        sql = f"SELECT COUNT(*) AS cohort_count\nFROM {base_fq} t0\n{joins_sql}{where}"
 
     client = bigquery.Client(project=BILLING_PROJECT)
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter(name, "STRING" if isinstance(val, str) else "FLOAT64" if isinstance(val, float) else "INT64", val)
-            for name, val in all_params
-        ]
-    )
+    job_config = bigquery.QueryJobConfig(query_parameters=_make_bq_params(all_params)) if all_params else None
 
     try:
         job = client.query(sql, job_config=job_config)
         rows = list(job.result(timeout=120))
     except Exception as e:
-        raise HTTPException(400, f"Query failed: {e}")
+        raise HTTPException(400, _friendly_query_error(e))
 
     if mode == "preview":
         schema = [{"name": f.name, "type": f.field_type} for f in (job.schema or [])]
@@ -1298,6 +1338,19 @@ def api_cohort_execute(body: dict[str, Any]):
     else:
         count = rows[0]["cohort_count"] if rows else 0
         return {"sql": sql, "count": count}
+
+
+def _friendly_query_error(e: Exception) -> str:
+    msg = str(e)
+    if "Not found: Table" in msg:
+        return "Table not found. It may have been deleted or renamed."
+    if "Access Denied" in msg or "403" in msg:
+        return "Permission denied. Check your billing project has access to this table."
+    if "Unrecognized name" in msg:
+        return "Column not found. The selected dimension may no longer exist in this table."
+    if "Could not cast" in msg or "Invalid" in msg:
+        return "Value type mismatch. Check that filter values match the column data type."
+    return f"Query error: {msg[:200]}"
 
 
 # ── Cohort from terminology ──────────────────────────────────────────────────
@@ -1339,38 +1392,37 @@ def api_cohort_from_terminology(body: dict[str, Any]):
 
     sem = read_sem_profile(PROFILE_BUCKET, base_table, project_id=BILLING_PROJECT)
     entity_col = (sem or {}).get("entity_anchor", "")
-    if not entity_col:
-        raise HTTPException(400, f"No entity anchor found for {base_table}")
-    _safe_ident(entity_col)
+
+    if len(all_tables) > 1 and not entity_col:
+        raise HTTPException(400, f"No entity anchor found for {base_table} — required for cross-table joins")
+    if entity_col:
+        _safe_ident(entity_col)
+
+    pk_cols = ((sem or {}).get("primary_key") or {}).get("columns") or []
 
     p, d, t = _safe_fq_table(base_table)
     base_fq = f"`{p}.{d}.{t}`"
 
     all_clauses: list[str] = []
-    all_params: list[tuple[str, Any]] = []
+    all_params: list[dict] = []
 
-    def _add_filters(filters: list[dict], alias: str):
+    def _add_term_filters(filters: list[dict], alias: str):
         for i, f in enumerate(filters):
             col = _safe_ident(f.get("column", ""))
             op = f.get("operator", "").strip()
             val = f.get("value", "").strip() if f.get("value") else ""
-            if not op or not val:
+            if not op or (not val and op not in ("IS NULL", "IS NOT NULL")):
                 all_clauses.append(f"{alias}.{col} IS NOT NULL")
             else:
-                if op not in ALLOWED_OPS:
-                    raise HTTPException(400, f"Invalid operator: {op}")
-                param_name = f"p_{alias}_{i}"
-                all_clauses.append(f"{alias}.{col} {op} @{param_name}")
-                parsed_val: Any = val
-                try:
-                    parsed_val = float(val)
-                    if parsed_val == int(parsed_val):
-                        parsed_val = int(parsed_val)
-                except (ValueError, TypeError):
-                    pass
-                all_params.append((param_name, parsed_val))
+                fc, fp = _build_where([{"column": col, "operator": op, "value": val}], alias)
+                for j, c in enumerate(fc):
+                    c_renamed = c.replace(f"p_{alias}_0", f"p_{alias}_{i}_{j}")
+                    all_clauses.append(c_renamed)
+                for p in fp:
+                    p["name"] = p["name"].replace(f"p_{alias}_0", f"p_{alias}_{i}_{j}")
+                    all_params.append(p)
 
-    _add_filters(table_filters[base_table], "t0")
+    _add_term_filters(table_filters[base_table], "t0")
 
     join_frags = []
     for ji, jt in enumerate(all_tables[1:]):
@@ -1379,33 +1431,29 @@ def api_cohort_from_terminology(body: dict[str, Any]):
         join_frags.append(
             f"JOIN `{jp}.{jd}.{jt_name}` {alias} ON t0.{entity_col} = {alias}.{entity_col}"
         )
-        _add_filters(table_filters[jt], alias)
+        _add_term_filters(table_filters[jt], alias)
 
     where = f"\nWHERE {' AND '.join(all_clauses)}" if all_clauses else ""
     joins_sql = "\n".join(join_frags)
 
     if mode == "preview":
         sql = f"SELECT t0.*\nFROM {base_fq} t0\n{joins_sql}{where}\nLIMIT 200"
-    else:
+    elif entity_col:
         sql = f"SELECT COUNT(DISTINCT t0.{entity_col}) AS cohort_count\nFROM {base_fq} t0\n{joins_sql}{where}"
+    elif pk_cols:
+        pk_expr = ", ".join(f"t0.{_safe_ident(c)}" for c in pk_cols)
+        sql = f"SELECT COUNT(DISTINCT CONCAT({pk_expr})) AS cohort_count\nFROM {base_fq} t0{where}"
+    else:
+        sql = f"SELECT COUNT(*) AS cohort_count\nFROM {base_fq} t0{where}"
 
     client = bigquery.Client(project=BILLING_PROJECT)
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter(
-                name,
-                "STRING" if isinstance(val, str) else "FLOAT64" if isinstance(val, float) else "INT64",
-                val,
-            )
-            for name, val in all_params
-        ]
-    ) if all_params else None
+    job_config = bigquery.QueryJobConfig(query_parameters=_make_bq_params(all_params)) if all_params else None
 
     try:
         job = client.query(sql, job_config=job_config)
         rows = list(job.result(timeout=120))
     except Exception as e:
-        raise HTTPException(400, f"Query failed: {e}")
+        raise HTTPException(400, _friendly_query_error(e))
 
     tables_used = all_tables
     if mode == "preview":
@@ -1760,7 +1808,8 @@ def api_terminology():
 
 # ── Chat ─────────────────────────────────────────────────────────────────────
 
-from chat_handler import chat_store, handle_chat_message
+from chat_handler import chat_store, handle_chat_message, handle_chat_stream
+from starlette.responses import StreamingResponse
 
 
 @app.post("/api/chat")
@@ -1803,6 +1852,49 @@ async def api_chat(body: dict[str, Any]):
         import traceback
         logger.error(f"Chat error:\n{traceback.format_exc()}")
         raise HTTPException(500, f"Chat failed: {e}")
+
+
+@app.post("/api/chat/stream")
+async def api_chat_stream(body: dict[str, Any]):
+    """SSE streaming chat — prevents 504 on long LLM calls."""
+    message = body.get("message", "").strip()
+    if not message:
+        raise HTTPException(400, "message is required")
+    if not DATA_PROJECT:
+        raise HTTPException(503, "No data project configured")
+
+    mode = body.get("mode", "metadata")
+    if mode not in ("metadata", "agent"):
+        mode = "metadata"
+
+    fq_table = body.get("fq_table") or None
+    session_id = body.get("session_id") or None
+    detail_level = body.get("detail_level", "summary")
+    if detail_level not in ("summary", "full"):
+        detail_level = "summary"
+
+    async def event_generator():
+        async for event in handle_chat_stream(
+            message=message,
+            mode=mode,
+            fq_table=fq_table,
+            session_id=session_id,
+            data_project=DATA_PROJECT,
+            billing_project=BILLING_PROJECT,
+            bucket=PROFILE_BUCKET,
+            model=CHAT_MODEL,
+            detail_level=detail_level,
+        ):
+            yield event
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/api/chat/clear")

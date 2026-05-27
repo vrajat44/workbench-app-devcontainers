@@ -274,16 +274,18 @@ export default function ChatPage() {
               ? "Full profile details loaded — ask about specific columns, stats, or joins"
               : "Ask about your datasets and tables — click \"Load full details\" for deeper answers"}
             <div style={{ display: "flex", gap: 24, justifyContent: "center", marginTop: 20, fontSize: 13 }}>
-              <div style={{ textAlign: "center", maxWidth: 200 }}>
+              <div style={{ textAlign: "center", maxWidth: 220 }}>
                 <div style={{ fontWeight: 700, color: "var(--wb-primary)", marginBottom: 4 }}>Q&A Mode</div>
+                <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>Metadata only — no real data access</div>
                 <div style={{ color: "var(--wb-muted)", fontSize: 12, lineHeight: 1.5 }}>
                   What tables have diagnosis data?<br />
                   Explain the SUBJID column<br />
                   What joins exist between tables?
                 </div>
               </div>
-              <div style={{ textAlign: "center", maxWidth: 200 }}>
+              <div style={{ textAlign: "center", maxWidth: 220 }}>
                 <div style={{ fontWeight: 700, color: "#e65100", marginBottom: 4 }}>Agent Mode</div>
+                <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>Can query actual data via BigQuery</div>
                 <div style={{ color: "var(--wb-muted)", fontSize: 12, lineHeight: 1.5 }}>
                   Count patients with diabetes<br />
                   Show top 10 diagnosis codes<br />

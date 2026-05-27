@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Optional
+from typing import Iterator, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +128,47 @@ def call_gemini(
             )
             return response.text
         raise
+
+
+def call_gemini_stream(
+    system_prompt: str,
+    user_message: str = "",
+    model_name: str = "",
+    project_id: Optional[str] = None,
+    location: Optional[str] = None,
+    temperature: float = 0.3,
+    max_output_tokens: int = 8192,
+) -> Iterator[str]:
+    """Yield text chunks from Gemini via streaming."""
+    from google.genai.types import GenerateContentConfig
+
+    model = model_name or _settings_model or _resolved_model or "gemini-2.5-flash"
+    loc = location or _settings_location or MODEL_LOCATION_MAP.get(model) or _get_location()
+
+    client = _get_client(project_id, loc)
+    config = GenerateContentConfig(
+        system_instruction=system_prompt,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+    )
+
+    try:
+        for chunk in client.models.generate_content_stream(
+            model=model, contents=user_message, config=config,
+        ):
+            if chunk.text:
+                yield chunk.text
+    except Exception as e:
+        if _resolved_location == "global" and ("SSL" in str(e) or "certificate" in str(e)):
+            logger.warning(f"SSL error on global streaming, falling back to us-central1: {e}")
+            fallback_client = _get_client(project_id, "us-central1")
+            for chunk in fallback_client.models.generate_content_stream(
+                model="gemini-2.5-flash", contents=user_message, config=config,
+            ):
+                if chunk.text:
+                    yield chunk.text
+        else:
+            raise
 
 
 def extract_json_from_response(response: str) -> Optional[dict | list]:

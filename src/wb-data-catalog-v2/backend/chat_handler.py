@@ -10,13 +10,16 @@ Uses a tiered context strategy for speed:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 from threading import Lock
 
 logger = logging.getLogger(__name__)
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 from verily_chat import ChatContext, ChatMessage, ChatSession, chat as metadata_chat
+from verily_chat.chat import chat_stream as metadata_chat_stream
 from verily_profiler import read_tech_profile, read_sem_profile
 from verily_profiler.storage import read_catalog_context
 
@@ -327,3 +330,133 @@ async def _handle_agent(
             raise
 
     return await asyncio.to_thread(_run)
+
+
+def _sse(data: dict) -> str:
+    return f"data: {json.dumps(data)}\n\n"
+
+
+async def handle_chat_stream(
+    message: str,
+    mode: str,
+    fq_table: Optional[str],
+    session_id: Optional[str],
+    data_project: str,
+    billing_project: str,
+    bucket: str,
+    model: Optional[str],
+    detail_level: str = "summary",
+) -> AsyncIterator[str]:
+    """Yield SSE events for a streaming chat response."""
+    try:
+        ctx = build_context(
+            fq_table, data_project, billing_project, bucket,
+            mode=mode, detail_level=detail_level, question=message,
+        )
+        session = chat_store.get_or_create(session_id, ctx, mode)
+        session.add_message(ChatMessage(role="user", content=message, mode=mode))
+
+        yield _sse({"type": "session", "session_id": session.session_id})
+
+        from verily_profiler.llm import detect_available_model
+        detected = detect_available_model(billing_project)
+        resolved_model = model or detected
+
+        queue: asyncio.Queue = asyncio.Queue()
+
+        if mode == "agent":
+            def _run_agent():
+                for event in _stream_agent_events(message, session, resolved_model, billing_project):
+                    queue.put_nowait(event)
+                queue.put_nowait(None)
+
+            task = asyncio.get_event_loop().run_in_executor(None, _run_agent)
+        else:
+            yield _sse({"type": "status", "text": "Thinking..."})
+
+            def _run_metadata():
+                for chunk in metadata_chat_stream(
+                    message, ctx,
+                    history=session.messages[:-1],
+                    model=resolved_model,
+                    project_id=billing_project,
+                ):
+                    queue.put_nowait(("chunk", chunk))
+                queue.put_nowait(None)
+
+            task = asyncio.get_event_loop().run_in_executor(None, _run_metadata)
+
+        full_text = ""
+        sql = None
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            event_type, data = item
+            if event_type == "chunk":
+                full_text += data
+                yield _sse({"type": "chunk", "text": data})
+            elif event_type == "status":
+                yield _sse({"type": "status", "text": data})
+            elif event_type == "history":
+                session._agent_history = data
+            elif event_type == "error":
+                yield _sse({"type": "error", "text": data})
+                await task
+                return
+
+        await task
+
+        m = re.search(r"```sql\s*\n(.*?)```", full_text, re.DOTALL)
+        if m:
+            sql = m.group(1).strip()
+
+        reply = ChatMessage(role="assistant", content=full_text, sql=sql, mode=mode)
+        session.add_message(reply)
+        yield _sse({"type": "done", "sql": sql, "mode": mode})
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Stream error:\n{traceback.format_exc()}")
+        yield _sse({"type": "error", "text": str(e)})
+
+
+def _stream_agent_events(
+    message: str,
+    session: ChatSession,
+    model: str,
+    billing_project: str,
+):
+    """Synchronous generator yielding (event_type, data) tuples for agent mode."""
+    try:
+        from verily_chat.agent import create_chat_agent, chat_agent_stream
+    except ImportError:
+        yield ("chunk", "Agent mode is not available.")
+        return
+
+    n_profiles = len(session.context.tech_profiles) + len(session.context.sem_profiles)
+    graph_key = f"{session.context.project_id}:{session.context.fq_table or 'all'}:{model}:{n_profiles}"
+
+    if graph_key not in _agent_cache:
+        graph, _ = create_chat_agent(
+            session.context,
+            model=model,
+            project_id=billing_project,
+        )
+        _agent_cache[graph_key] = {"graph": graph}
+
+    graph = _agent_cache[graph_key]["graph"]
+    agent_history = getattr(session, "_agent_history", [])
+
+    try:
+        for event_type, data in chat_agent_stream(message, graph, history=agent_history):
+            if event_type == "status":
+                yield ("status", data)
+            elif event_type == "text":
+                yield ("chunk", data)
+            elif event_type == "history":
+                yield ("history", data)
+    except Exception as e:
+        session._agent_history = []
+        logger.error(f"Agent stream error: {e}")
+        yield ("error", str(e))

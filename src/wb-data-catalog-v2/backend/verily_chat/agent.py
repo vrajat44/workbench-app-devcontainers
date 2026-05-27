@@ -167,9 +167,9 @@ def create_chat_agent(
     system_prompt = build_catalog_system_prompt(context, mode="agent")
     tools = _make_tools(context, bp)
 
-    from verily_profiler.llm import _get_location, _resolved_model
-    loc = location or _get_location()
-    resolved_model = model or _resolved_model or "gemini-2.5-flash"
+    from verily_profiler.llm import _get_location, _resolved_model, _settings_model, _settings_location, MODEL_LOCATION_MAP
+    resolved_model = model or _settings_model or _resolved_model or "gemini-2.5-flash"
+    loc = location or _settings_location or MODEL_LOCATION_MAP.get(resolved_model) or _get_location()
 
     llm = ChatVertexAI(
         model_name=resolved_model,
@@ -201,6 +201,58 @@ def create_chat_agent(
     graph.add_edge("tools", "agent")
 
     return graph.compile(), system_prompt
+
+
+def chat_agent_stream(
+    message: str,
+    compiled_graph,
+    history: list | None = None,
+):
+    """
+    Yield (event_type, data) tuples from an agent run.
+
+    Event types:
+      - ("status", str): tool execution status
+      - ("text", str): final response text chunk
+    """
+    _check_deps()
+
+    messages = list(history or [])
+    messages.append(HumanMessage(content=message))
+
+    last_ai_content = ""
+    updated_messages: list = list(messages)
+
+    for event in compiled_graph.stream({"messages": messages}):
+        for node_name, state_update in event.items():
+            new_msgs = state_update.get("messages", [])
+            updated_messages.extend(new_msgs)
+
+            if node_name == "tools":
+                for msg in new_msgs:
+                    if hasattr(msg, "name"):
+                        yield ("status", f"Running tool: {msg.name}")
+                    elif hasattr(msg, "content"):
+                        tool_text = str(msg.content)[:80]
+                        yield ("status", f"Tool returned: {tool_text}...")
+
+            elif node_name == "agent":
+                for msg in new_msgs:
+                    if isinstance(msg, AIMessage) and not msg.tool_calls:
+                        content = msg.content
+                        if isinstance(content, list):
+                            parts = [b.get("text", "") if isinstance(b, dict) else str(b) for b in content]
+                            last_ai_content = "\n".join(parts)
+                        else:
+                            last_ai_content = str(content) if content else ""
+                    elif isinstance(msg, AIMessage) and msg.tool_calls:
+                        for tc in msg.tool_calls:
+                            yield ("status", f"Calling {tc.get('name', 'tool')}...")
+
+    if last_ai_content:
+        yield ("text", last_ai_content)
+
+    yield ("history", updated_messages)
 
 
 def chat_agent(

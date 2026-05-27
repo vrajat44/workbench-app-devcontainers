@@ -20,9 +20,8 @@ export function useProgressiveCatalog(dataProject: string, refreshKey = 0) {
       setLoadingDatasets(false);
       return;
     }
-    const projectChanged = prevProject.current !== dataProject;
     prevProject.current = dataProject;
-    if (projectChanged) setDatasets([]);
+    setDatasets([]);
 
     setLoadingDatasets(true);
     setErr(null);

@@ -58,6 +58,29 @@ def chat(
     )
 
 
+def chat_stream(
+    message: str,
+    context: ChatContext,
+    history: list[ChatMessage] | None = None,
+    model: str = "",
+    project_id: str | None = None,
+):
+    """Yield text chunks for streaming chat response."""
+    from verily_profiler.llm import call_gemini_stream
+
+    system_prompt = build_catalog_system_prompt(context, mode="metadata")
+    user_content = _build_user_content(message, history)
+
+    yield from call_gemini_stream(
+        system_prompt=system_prompt,
+        user_message=user_content,
+        model_name=model,
+        project_id=project_id,
+        temperature=0.3,
+        max_output_tokens=8192,
+    )
+
+
 def _build_user_content(message: str, history: list[ChatMessage] | None) -> str:
     """Fold conversation history into the user message for context."""
     if not history:
