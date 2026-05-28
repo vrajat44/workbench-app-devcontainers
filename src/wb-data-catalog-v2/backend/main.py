@@ -200,7 +200,10 @@ async def lifespan(app: FastAPI):
     if not BILLING_PROJECT:
         BILLING_PROJECT = DEFAULT_BILLING_PROJECT
         logger.info(f"Using default billing project: {BILLING_PROJECT}")
-    DATA_PROJECT = (os.environ.get("DATA_PROJECT_ID") or "").strip() or BILLING_PROJECT
+    DATA_PROJECT = (os.environ.get("DATA_PROJECT_ID") or "").strip()
+    if not DATA_PROJECT:
+        DATA_PROJECT = BILLING_PROJECT
+        logger.warning("DATA_PROJECT_ID not set — defaulting to billing project %s", BILLING_PROJECT)
     GEMINI_MODEL = os.environ.get("GEMINI_MODEL") or None
     GEMINI_LOCATION = os.environ.get("GEMINI_LOCATION") or None
     from verily_profiler.llm import set_model_settings
@@ -263,6 +266,10 @@ _WS_DISK_CACHE = Path(__file__).resolve().parent / ".wb_workspaces_cache.json"
 _WS_DISK_TTL = 86400  # 24 hours
 
 
+class WbAuthError(Exception):
+    pass
+
+
 def _run_wb(args: list[str], timeout: int = 60) -> list | dict | None:
     import subprocess, json as _json, shutil
     wb_path = shutil.which("wb")
@@ -274,8 +281,13 @@ def _run_wb(args: list[str], timeout: int = 60) -> list | dict | None:
             capture_output=True, text=True, timeout=timeout,
         )
         if result.returncode != 0:
+            combined = (result.stderr or "") + (result.stdout or "")
+            if "open the following address" in combined or "auth" in combined.lower():
+                raise WbAuthError("Workbench CLI session expired. Run `wb auth login` in your terminal to re-authenticate.")
             return None
         return _json.loads(result.stdout)
+    except WbAuthError:
+        raise
     except Exception:
         return None
 
@@ -354,7 +366,10 @@ def api_workspace_datasets(workspace_id: str):
         if now - ts < _WS_CACHE_TTL:
             return resp
 
-    data = _run_wb(["resource", "list", f"--workspace={workspace_id}", "--format=json"])
+    try:
+        data = _run_wb(["resource", "list", f"--workspace={workspace_id}", "--format=json"])
+    except WbAuthError as e:
+        raise HTTPException(401, str(e))
     if data is None:
         raise HTTPException(503, "wb CLI unavailable or timed out")
 
@@ -1977,3 +1992,8 @@ if FRONTEND_DIST.is_dir():
         if index.is_file():
             return FileResponse(index, media_type="text/html")
         raise HTTPException(404)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)

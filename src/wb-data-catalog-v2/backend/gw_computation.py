@@ -22,8 +22,8 @@ def execute_workflow(
     client = bigquery.Client(project=billing_project)
     try:
         rows = client.query(sql).result(timeout=120)
-    except Exception as e:
-        raise ValueError(f"Query execution failed: {e}")
+    except Exception:
+        raise ValueError("Query execution failed. Check that the table exists and your filters are valid.")
     return [dict(r) for r in rows]
 
 

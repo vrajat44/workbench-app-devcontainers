@@ -58,7 +58,7 @@ export function SettingsPanel(props: {
   const [selectedWsId, setSelectedWsId] = useState("");
   const selectedWs = workspaces.find((w) => w.id === selectedWsId);
 
-  const { datasets, loading: dsLoading } = useWorkspaceDatasets(selectedWsId);
+  const { datasets, loading: dsLoading, err: dsErr } = useWorkspaceDatasets(selectedWsId);
 
   const [selectedDataProject, setSelectedDataProject] = useState(c?.data_project ?? "");
   const [model, setModel] = useState(c?.gemini_model ?? "");
@@ -192,6 +192,19 @@ export function SettingsPanel(props: {
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Data Project</div>
               {dsLoading ? (
                 <div style={{ fontSize: 13, color: "var(--wb-muted)", padding: 8 }}>Loading datasets...</div>
+              ) : dsErr ? (
+                <div style={{ fontSize: 13, padding: 12, background: "#fce4ec", borderRadius: "var(--wb-radius)", border: "1px solid #ef9a9a" }}>
+                  <div style={{ fontWeight: 600, color: "#c62828", marginBottom: 4 }}>
+                    {dsErr.includes("401") || dsErr.includes("auth") || dsErr.includes("expired")
+                      ? "Workbench session expired"
+                      : "Failed to load datasets"}
+                  </div>
+                  <div style={{ color: "#b71c1c" }}>
+                    {dsErr.includes("401") || dsErr.includes("auth") || dsErr.includes("expired")
+                      ? <>Run <code style={{ background: "#ffcdd2", padding: "2px 6px", borderRadius: 4 }}>wb auth login</code> in your terminal, then re-select this workspace.</>
+                      : dsErr}
+                  </div>
+                </div>
               ) : datasets.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {/* Default: workspace's own project */}
