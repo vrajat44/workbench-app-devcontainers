@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HelpPanel } from "./components/HelpSystem";
 import { LoadingSplash } from "./components/LoadingSplash";
@@ -19,6 +19,7 @@ export default function App() {
   const { config, save: saveConfig, reload: reloadConfig } = useConfig();
   const [refreshKey, setRefreshKey] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [splashHold, setSplashHold] = useState(false);
   const location = useLocation();
 
   const configured = config?.configured ?? false;
@@ -29,12 +30,25 @@ export default function App() {
     refreshKey,
   );
 
+  const handleSaving = () => setSplashHold(true);
+
   const handleRefresh = () => {
+    setSplashHold(true);
     reloadConfig();
     setRefreshKey((k) => k + 1);
   };
 
-  const isInitialLoad = catalog.loadingDatasets && catalog.datasets.length === 0;
+  const wasLoading = useRef(false);
+  const catalogReady = !catalog.loadingDatasets && catalog.datasets.length > 0;
+  useEffect(() => {
+    if (catalog.loadingDatasets) wasLoading.current = true;
+    if (splashHold && wasLoading.current && catalogReady) {
+      wasLoading.current = false;
+      setSplashHold(false);
+    }
+  }, [splashHold, catalog.loadingDatasets, catalogReady]);
+
+  const isInitialLoad = splashHold || (catalog.loadingDatasets && catalog.datasets.length === 0);
 
   const helpPage = location.pathname.startsWith("/table/") ? "table"
     : location.pathname === "/terminology" ? "terminology"
@@ -54,6 +68,7 @@ export default function App() {
           <SettingsPanel
             config={config}
             onSave={saveConfig}
+            onSaving={handleSaving}
             onSaved={handleRefresh}
           />
         </div>
@@ -122,13 +137,14 @@ export default function App() {
               <Route path="/table/:project/:dataset/:table" element={<TablePage />} />
               <Route path="/terminology" element={<TerminologyPage />} />
               <Route path="/cohorts" element={<CohortsPage />} />
-              <Route path="/chat" element={<ChatPage />} />
+              <Route path="/chat" element={<ChatPage dataProject={dataProject} />} />
               <Route
                 path="/settings"
                 element={
                   <SettingsPage
                     config={config}
                     onSave={saveConfig}
+                    onSaving={handleSaving}
                     onSaved={handleRefresh}
                   />
                 }

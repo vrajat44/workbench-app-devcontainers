@@ -506,6 +506,28 @@ class BulkProfileManager:
                         existing = col.get("join_paths") or []
                         merged = list(set(existing + inferred))
                         col["join_paths"] = merged
+                # Build structural_links from join paths
+                entity_anchor = sem.get("entity_anchor", "")
+                structural_links = []
+                for jp in join_paths:
+                    src = jp.get("source_column", "")
+                    target = jp.get("target", "")
+                    conf = jp.get("confidence", "medium")
+                    if "." in target:
+                        tgt_table, tgt_col = target.rsplit(".", 1)
+                    else:
+                        continue
+                    link_type = "entity_key" if src == entity_anchor else "shared_dimension"
+                    structural_links.append({
+                        "source_column": src,
+                        "target_table": tgt_table,
+                        "target_column": tgt_col,
+                        "link_type": link_type,
+                        "cardinality": "many-to-many",
+                        "confidence": conf,
+                    })
+                if structural_links:
+                    sem["structural_links"] = structural_links
                 p, d, t = parse_fq_table(fq_table)
                 upload_json(bucket, sem_object_path(p, d, t), sem, billing_project)
             except Exception as e:

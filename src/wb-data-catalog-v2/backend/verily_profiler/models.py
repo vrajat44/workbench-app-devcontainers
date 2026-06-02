@@ -209,9 +209,12 @@ class SemanticColumnProfile:
     confidence: str = "medium"
     unit_of_measure: str = ""
     measurement_method: str = ""
+    concept_binding: Optional[dict] = None
+    code_system_binding: Optional[dict] = None
+    value_set_binding: Optional[list[str]] = None
 
     def to_json_dict(self) -> dict:
-        return {
+        d = {
             "name": self.column_name,
             "definition": self.definition,
             "terminology_bindings": [tb.to_json_dict() for tb in self.terminology_bindings],
@@ -221,6 +224,13 @@ class SemanticColumnProfile:
             "unit_of_measure": self.unit_of_measure,
             "measurement_method": self.measurement_method,
         }
+        if self.concept_binding:
+            d["concept_binding"] = self.concept_binding
+        if self.code_system_binding:
+            d["code_system_binding"] = self.code_system_binding
+        if self.value_set_binding:
+            d["value_set_binding"] = self.value_set_binding
+        return d
 
     def to_review_row(self) -> dict:
         bindings_str = "; ".join(
@@ -257,6 +267,9 @@ class SemanticTableProfile:
     primary_key: PrimaryKeyInfo = field(default_factory=PrimaryKeyInfo)
     granularity: str = ""
     semantic_domain: SemanticDomain = field(default_factory=SemanticDomain)
+    entity_anchor: str = ""
+    entity_type: str = ""
+    cohort_dimensions: list[str] = field(default_factory=list)
     columns: list[SemanticColumnProfile] = field(default_factory=list)
     validation: SemanticValidationResult = field(default_factory=SemanticValidationResult)
 
@@ -274,6 +287,9 @@ class SemanticTableProfile:
             "primary_key": self.primary_key.to_json_dict(),
             "granularity": self.granularity,
             "semantic_domain": self.semantic_domain.to_json_dict(),
+            "entity_anchor": self.entity_anchor,
+            "entity_type": self.entity_type,
+            "cohort_dimensions": self.cohort_dimensions,
             "validation": asdict(self.validation),
             "columns": [c.to_json_dict() for c in self.columns],
         }

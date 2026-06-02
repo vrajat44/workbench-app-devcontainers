@@ -43,6 +43,7 @@ const selectStyle: React.CSSProperties = {
 export function SettingsPanel(props: {
   config: ApiConfig | null;
   onSave: (patch: { billing_project?: string; data_project?: string; gemini_model?: string; gemini_location?: string }) => Promise<SaveResult>;
+  onSaving?: () => void;
   onSaved: () => void;
 }) {
   const c = props.config;
@@ -83,6 +84,7 @@ export function SettingsPanel(props: {
     setSaving(true);
     setMsg(null);
     setBucketMsg(null);
+    props.onSaving?.();
     try {
       const result = await props.onSave({
         billing_project: billingProject,

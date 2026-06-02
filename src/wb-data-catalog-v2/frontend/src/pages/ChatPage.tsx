@@ -10,14 +10,15 @@ interface ContextInfo {
   catalog_context_chars: number;
 }
 
-function useContextInfo() {
+function useContextInfo(dataProject?: string) {
   const [info, setInfo] = useState<ContextInfo | null>(null);
   useEffect(() => {
+    setInfo(null);
     fetch("/api/chat/context-info")
       .then((r) => r.json())
       .then(setInfo)
       .catch(() => {});
-  }, []);
+  }, [dataProject]);
   return info;
 }
 
@@ -89,13 +90,13 @@ function MessageBubble({ msg }: { msg: ChatMessageData }) {
   );
 }
 
-export default function ChatPage() {
-  const { messages, loading, error, mode, sendMessage, clearChat, toggleMode } = useChat();
+export default function ChatPage({ dataProject }: { dataProject?: string }) {
+  const { messages, loading, error, mode, sendMessage, clearChat, toggleMode } = useChat(dataProject);
   const [input, setInput] = useState("");
   const [detailLevel, setDetailLevel] = useState<"summary" | "full">("summary");
   const [preloading, setPreloading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const ctxInfo = useContextInfo();
+  const ctxInfo = useContextInfo(dataProject);
 
   const toggleDetail = async () => {
     if (detailLevel === "full") {

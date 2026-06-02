@@ -86,7 +86,17 @@ Return a single JSON object with these top-level fields:
 {_TAXONOMY_LIST}
    - "sub_domain": a free-text string providing more specificity
      (e.g. "Oncology Pathology Reports", "Blood Chemistry Panels")
-6. "columns": a JSON array where each element has:
+6. "entity_anchor": the single column that best identifies the entity each
+   row is about (e.g. "patient_id", "SUBJID", "member_id"). Set to "" if
+   no clear entity identifier exists.
+7. "entity_type": what the entity_anchor represents (e.g. "patient",
+   "subject", "claim", "sample"). Set to "" if entity_anchor is "".
+8. "cohort_dimensions": an array of column names from this table that are
+   useful for filtering/cohort-building (e.g. demographic columns, diagnosis
+   codes, visit dates, status flags, categorical variables with moderate
+   cardinality). Exclude primary keys, free-text, and high-cardinality
+   identifiers. Return [] if no useful filter dimensions exist.
+9. "columns": a JSON array where each element has:
    - "column_name": exact column name (must match input)
    - "definition": plain-language description (2-3 sentences)
    - "terminology_bindings": array of objects with "system", "code", "display"
@@ -123,9 +133,20 @@ Return a single JSON object with these top-level fields:
          - "mh_" or "medical_history" prefix → "self-reported" (medical history is typically patient-reported)
          - score columns computed from subscales → "derived"
          - raw survey/questionnaire items → "self-reported"
+   - "concept_binding": the primary clinical/business concept this column
+       represents, or null if none. Object with "system", "code", "display",
+       "confidence". Example: column DSDECOD → {{"system":"CDISC","code":"DSDECOD",
+       "display":"Standardized Disposition Term","confidence":"high"}}.
+       This is the SINGLE best concept for the column (unlike terminology_bindings
+       which lists all applicable code bindings).
+   - "code_system_binding": if this column's VALUES come from a known code
+       system, specify it here, or null. Object with "system", "display",
+       "confidence". Example: column ICD10_CODE → {{"system":"http://hl7.org/fhir/sid/icd-10-cm",
+       "display":"ICD-10-CM","confidence":"high"}}. Set to null for columns
+       whose values are not from a standard code system.
 
 IMPORTANT: Fields that are not applicable should be set to their empty/default
-values (empty string, empty array). This is expected behavior, not an error.
+values (empty string, empty array, or null). This is expected behavior, not an error.
 
 Return ONLY a JSON object (no markdown, no explanation outside the JSON).
 """
@@ -227,11 +248,18 @@ def profile_semantic(
     sem_profile.granularity = table_meta.get("granularity", "")
     sem_profile.primary_key = _parse_primary_key(table_meta.get("primary_key"))
     sem_profile.semantic_domain = _parse_semantic_domain(table_meta.get("semantic_domain"))
+    sem_profile.entity_anchor = table_meta.get("entity_anchor", "")
+    sem_profile.entity_type = table_meta.get("entity_type", "")
+    sem_profile.cohort_dimensions = table_meta.get("cohort_dimensions", [])
 
-    tech_col_names = {cp.column_name for cp in tech_profile.columns}
+    tech_col_lookup = {cp.column_name: cp for cp in tech_profile.columns}
+    tech_col_names = set(tech_col_lookup.keys())
     for cp in tech_profile.columns:
         llm_data = col_map.get(cp.column_name, {})
         sem_col = _build_semantic_column(cp.column_name, llm_data)
+        if (cp.distinct_count is not None and cp.distinct_count <= 50
+                and cp.top_values and cp.data_type in ("STRING", "INT64", "BOOL", "FLOAT64")):
+            sem_col.value_set_binding = [str(v) for v in cp.top_values[:50]]
         sem_profile.columns.append(sem_col)
 
     cross_issues: list[str] = []
@@ -389,6 +417,16 @@ def _build_semantic_column(column_name, llm_data):
     measurement_method = str(llm_data.get("measurement_method", "")).strip().lower()
     if measurement_method not in valid_methods:
         measurement_method = ""
+    concept_binding = llm_data.get("concept_binding")
+    if isinstance(concept_binding, dict) and "system" in concept_binding:
+        concept_binding = {k: concept_binding.get(k, "") for k in ("system", "code", "display", "confidence")}
+    else:
+        concept_binding = None
+    code_system_binding = llm_data.get("code_system_binding")
+    if isinstance(code_system_binding, dict) and "system" in code_system_binding:
+        code_system_binding = {k: code_system_binding.get(k, "") for k in ("system", "display", "confidence")}
+    else:
+        code_system_binding = None
     return SemanticColumnProfile(
         column_name=column_name,
         definition=str(llm_data.get("definition", "")).strip(),
@@ -398,6 +436,8 @@ def _build_semantic_column(column_name, llm_data):
         confidence=confidence,
         unit_of_measure=unit_of_measure,
         measurement_method=measurement_method,
+        concept_binding=concept_binding,
+        code_system_binding=code_system_binding,
     )
 
 

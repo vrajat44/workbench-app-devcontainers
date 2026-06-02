@@ -1,9 +1,9 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { ChatMessageData } from "../types/chat";
 
 export type ChatMode = "metadata" | "agent";
 
-export function useChat() {
+export function useChat(dataProject?: string) {
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -11,6 +11,14 @@ export function useChat() {
   const [error, setError] = useState<string | null>(null);
   const [streamingStatus, setStreamingStatus] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    abortRef.current?.abort();
+    setMessages([]);
+    setSessionId(null);
+    setError(null);
+    setStreamingStatus(null);
+  }, [dataProject]);
 
   const sendMessage = useCallback(
     async (text: string, fqTable?: string | null, detailLevel: "summary" | "full" = "summary") => {

@@ -8,6 +8,7 @@ interface SaveResult extends ApiConfig {
 export default function SettingsPage(props: {
   config: ApiConfig | null;
   onSave: (patch: { billing_project?: string; data_project?: string; gemini_model?: string }) => Promise<SaveResult>;
+  onSaving?: () => void;
   onSaved: () => void;
 }) {
   return (
@@ -16,7 +17,7 @@ export default function SettingsPage(props: {
       <p style={{ color: "var(--wb-muted)", margin: "0 0 20px", fontSize: 14 }}>
         Configure your data source, billing project, and AI model
       </p>
-      <SettingsPanel config={props.config} onSave={props.onSave} onSaved={props.onSaved} />
+      <SettingsPanel config={props.config} onSave={props.onSave} onSaving={props.onSaving} onSaved={props.onSaved} />
     </div>
   );
 }

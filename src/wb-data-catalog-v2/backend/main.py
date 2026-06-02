@@ -496,13 +496,17 @@ def api_update_settings(body: dict[str, Any]):
         GEMINI_LOCATION = val if val and val != "auto" else None
     from verily_profiler.llm import set_model_settings
     set_model_settings(GEMINI_MODEL, GEMINI_LOCATION)
-    from chat_handler import invalidate_context_cache
+    from chat_handler import invalidate_context_cache, chat_store
     invalidate_context_cache()
+    _invalidate_profiling_caches()
+    chat_store._sessions.clear()
+    logger.info("Settings changed: all caches invalidated, chat sessions cleared")
 
     bucket_status: dict[str, Any] = {}
     if BILLING_PROJECT and PROFILE_BUCKET:
         bucket_status = _ensure_bucket(PROFILE_BUCKET, BILLING_PROJECT)
         logger.info(f"Bucket check: {bucket_status}")
+        _ensure_catalog_context_exists()
 
     cfg = api_config()
     cfg["bucket_status"] = bucket_status
