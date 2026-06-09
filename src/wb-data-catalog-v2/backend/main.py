@@ -1125,33 +1125,61 @@ def api_cohort_dimensions():
             else:
                 tech_profiles[fq] = data
 
-    tables = []
-    for fq in sem_fqs:
-        sem = profiles.get(fq)
-        if not sem:
-            continue
-        entity_anchor = sem.get("entity_anchor", "")
-        cohort_dims = sem.get("cohort_dimensions") or []
-        if not cohort_dims:
-            continue
+    import re as _re
 
+    _ANCHOR_PATTERNS = [
+        r"^usubjid$", r"^subjid$", r"^person_id$", r"^subject_id$", r"^patient_id$",
+        r"^member_id$", r"^participant_id$", r"^enrolid$", r".*_id$", r"^id$",
+    ]
+
+    def _infer_anchor(sem: dict | None, col_names: list[str]) -> str:
+        """Entity anchor for COUNT(DISTINCT): LLM value, else primary key, else an id-like column."""
+        anchor = (sem or {}).get("entity_anchor") or ""
+        if anchor:
+            return anchor
+        pk_cols = ((sem or {}).get("primary_key") or {}).get("columns") or []
+        if len(pk_cols) == 1:
+            return pk_cols[0]
+        for pat in _ANCHOR_PATTERNS:
+            for n in col_names:
+                if _re.match(pat, n, _re.I):
+                    return n
+        return ""
+
+    # Every column is a filterable dimension. We expose them all (LLM-picked
+    # cohort_dimensions float to the top), enriched with data type + value sets
+    # from whichever profile exists. A table needs only a technical OR semantic
+    # profile to be cohortable.
+    tables = []
+    for fq in sorted(set(sem_fqs) | set(tech_fqs)):
+        sem = profiles.get(fq)
         tech = tech_profiles.get(fq)
-        tech_types = {}
-        if tech:
-            for tc in tech.get("columns", []):
-                tech_types[tc.get("name", "")] = tc.get("data_type", "STRING")
+        sem_cols = (sem or {}).get("columns") or []
+        tech_cols = (tech or {}).get("columns") or []
+
+        tech_types = {c.get("name", ""): c.get("data_type", "STRING") for c in tech_cols}
+        tech_values = {c.get("name", ""): (c.get("top_values") or []) for c in tech_cols}
+        sem_by_name = {c.get("name", ""): c for c in sem_cols}
+
+        col_names = [c.get("name", "") for c in (sem_cols or tech_cols) if c.get("name")]
+        if not col_names:
+            continue
+        preferred = set((sem or {}).get("cohort_dimensions") or [])
+        col_names.sort(key=lambda n: (n not in preferred, n.lower()))
 
         dims = []
+        for name in col_names:
+            sc = sem_by_name.get(name, {})
+            dims.append({
+                "column": name,
+                "definition": sc.get("definition", ""),
+                "values": sc.get("value_set_binding") or tech_values.get(name) or [],
+                "data_type": tech_types.get(name, "STRING"),
+                "preferred": name in preferred,
+            })
+
         joinable = set()
-        for col_data in sem.get("columns", []):
-            col_name = col_data.get("name", "")
-            if col_name in cohort_dims:
-                dims.append({
-                    "column": col_name,
-                    "definition": col_data.get("definition", ""),
-                    "values": col_data.get("value_set_binding") or [],
-                    "data_type": tech_types.get(col_name, "STRING"),
-                })
+        for col_data in sem_cols:
             for jp in col_data.get("join_paths") or []:
                 parts = jp.rsplit(".", 1)
                 if len(parts) == 2 and parts[0] != fq:
@@ -1159,9 +1187,9 @@ def api_cohort_dimensions():
 
         tables.append({
             "fq_table": fq,
-            "business_name": sem.get("business_name", ""),
-            "entity_anchor": entity_anchor,
-            "entity_type": sem.get("entity_type", ""),
+            "business_name": (sem or {}).get("business_name", "") or fq.rsplit(".", 1)[-1],
+            "entity_anchor": _infer_anchor(sem, col_names),
+            "entity_type": (sem or {}).get("entity_type", ""),
             "dimensions": dims,
             "joinable_tables": sorted(joinable),
         })

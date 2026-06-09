@@ -464,9 +464,9 @@ function TableFiltersTab() {
       {!loading && data && data.tables.length === 0 && (
         <Card>
           <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--wb-muted)" }}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: "var(--wb-text)" }}>No cohort dimensions available</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: "var(--wb-text)" }}>No profiled tables yet</div>
             <p style={{ marginBottom: 16, fontSize: 13 }}>
-              Run semantic profiling on your tables to generate filterable dimensions for cohort building.
+              Profile your tables to filter cohorts on their columns — technical profiling is enough; semantic profiling adds richer value sets and suggested dimensions.
             </p>
             <a href="/" style={{ color: "var(--wb-primary)", fontWeight: 600, fontSize: 13 }}>
               Open Profile Wizard
